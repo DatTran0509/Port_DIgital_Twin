@@ -170,4 +170,291 @@ body.hide-ui #panel.open { right: -430px !important; }
 }
 .obj-row:last-child { border-bottom: none; }
 .obj-lbl { font-size: 13px; color: #9abce0; }
-.obj-val { font-size: 14px; font-weight: 600; color: #fff; text-align: right; max-width: 60%; }
+.obj-val { font-size: 14px; font-weight: 600; color: #fff; text-align: right; max-width: 60%; }
+
+/* --- Ship Route Timeline (LIVE) --- */
+.ship-route-panel {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.route-title {
+  font-size: 11px;
+  color: #7df3cf;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.rt-status-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  background: rgba(5,12,26,0.5);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(52,224,240,0.15);
+}
+.timeline-status-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #34E0F0;
+}
+.timeline-eta-text {
+  font-size: 11px;
+  color: #F8B23C;
+  font-weight: 600;
+}
+.rt-track-container {
+  position: relative;
+  height: 40px;
+  margin: 0 16px 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rt-track-line {
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  height: 2px;
+  background: rgba(100,150,220,0.3);
+  transform: translateY(-50%);
+  z-index: 1;
+}
+.rt-node {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rt-node-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #6688aa;
+  box-shadow: 0 0 0 4px rgba(8,16,32,1);
+}
+.rt-node.start .rt-node-dot { background: #15D8A4; }
+.rt-node.end .rt-node-dot { background: #F8B23C; }
+.rt-node-lbl {
+  position: absolute;
+  top: 14px;
+  font-size: 10px;
+  color: #9abce0;
+  white-space: nowrap;
+}
+.timeline-dot-moving {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  z-index: 3;
+  transition: left 0.1s linear;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+/* --- Radar Panel Override --- */
+#obj-info-panel.radar-mode {
+  width: 860px;
+  max-width: 90vw;
+  background: rgba(10, 12, 20, 0.95);
+  border: 1px solid rgba(52, 224, 240, 0.3);
+  box-shadow: 0 0 30px rgba(52, 224, 240, 0.15);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  bottom: auto;
+  right: auto;
+}
+#obj-info-panel.radar-mode .obj-header {
+  border-bottom: 1px solid rgba(52, 224, 240, 0.2);
+}
+#obj-info-panel.radar-mode #obj-icon {
+  background: rgba(52, 224, 240, 0.15);
+  color: #34e0f0;
+}
+
+.radar-sim-container {
+  display: flex;
+  gap: 20px;
+}
+.radar-map-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.radar-circle-wrapper {
+  position: relative;
+  width: 400px;
+  height: 400px;
+}
+.radar-circle {
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  border: 1px solid rgba(52, 224, 240, 0.4);
+  background: repeating-radial-gradient(
+    circle at center,
+    transparent 0, transparent 49px,
+    rgba(52, 224, 240, 0.15) 50px
+  );
+  background-color: #050a10;
+  position: relative;
+  overflow: hidden;
+}
+.radar-crosshair {
+  position: absolute;
+  top: 0; bottom: 0; left: 50%; width: 1px;
+  background: rgba(52, 224, 240, 0.2);
+}
+.radar-crosshair::after {
+  content: '';
+  position: absolute;
+  left: -200px; right: -200px; top: 50%; height: 1px;
+  background: rgba(52, 224, 240, 0.2);
+}
+.radar-sweep {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 75%,
+    rgba(52, 224, 240, 0.1) 95%,
+    rgba(52, 224, 240, 0.7) 100%
+  );
+  animation: sweep 4s linear infinite;
+  z-index: 2;
+}
+@keyframes sweep { to { transform: rotate(360deg); } }
+
+.radar-blip-real {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  cursor: pointer;
+  transition: left 0.1s linear, top 0.1s linear;
+}
+.radar-blip-real:hover {
+  transform: translate(-50%, -50%) scale(1.5);
+}
+.radar-blip-real.normal { background: #34E0F0; box-shadow: 0 0 10px #34E0F0; }
+.radar-blip-real.alert {
+  background: #FF5468; box-shadow: 0 0 15px #FF5468;
+  animation: pulse-alert 1s infinite;
+}
+@keyframes pulse-alert { 0%,100%{opacity:1;} 50%{opacity:.5;transform:translate(-50%,-50%) scale(1.3);} }
+
+.radar-blip-real.alert::after {
+  content: 'TARGET';
+  position: absolute;
+  left: 14px; top: -4px;
+  color: #FF5468;
+  font-size: 10px;
+  font-weight: bold;
+  pointer-events: none;
+}
+
+.radar-footer {
+  font-size: 11px;
+  color: #6688aa;
+  letter-spacing: 1px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+.radar-side {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.radar-box {
+  background: rgba(5, 10, 16, 0.6);
+  border: 1px solid rgba(100,150,220,0.15);
+  border-radius: 8px;
+  padding: 12px;
+}
+.radar-box-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #daeeff;
+  margin-bottom: 10px;
+}
+.uav-row, .log-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #9abce0;
+  padding: 5px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.05);
+  font-family: monospace;
+}
+.uav-row:last-child, .log-row:last-child { border: none; }
+.badge {
+  padding: 2px 4px; border-radius: 3px; font-size: 9px; font-weight: bold; margin-left: 6px;
+}
+.badge.ready { background: #334455; color: #9abce0; }
+.badge.flying { background: #FF5468; color: #fff; }
+.badge.chg { background: #F8B23C; color: #fff; }
+
+.cam-box {
+  height: 140px;
+  background: linear-gradient(180deg, #10051a, #200515);
+  border-radius: 6px;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,84,104,0.2);
+  overflow: hidden;
+}
+.cam-target {
+  width: 40px; height: 80px;
+  border: 1px solid #34E0F0;
+  border-radius: 4px;
+  background: radial-gradient(ellipse at center, #ffaa00 0%, #ff0000 40%, transparent 70%);
+  animation: pulse-alert 2s infinite;
+}
+.cam-label {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  color: #34E0F0; font-size: 10px; font-family: monospace;
+  background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px;
+}
+
+#obj-info-panel.radar-mode .obj-content {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Radar Ship Popover */
+.radar-ship-popover {
+  position: absolute;
+  width: 340px;
+  background: rgba(10, 16, 28, 0.95);
+  border: 1px solid rgba(52, 224, 240, 0.4);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  z-index: 10;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+.popover-close {
+  position: absolute;
+  top: 8px; right: 8px;
+  cursor: pointer;
+  color: #9abce0;
+  font-size: 12px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+}
+.popover-close:hover { background: rgba(255,84,104,0.6); color: #fff; }
+.popover-header { margin-bottom: 8px; }
+.popover-title { font-size: 14px; font-weight: bold; color: #fff; }
+.popover-subtitle { font-size: 10px; color: #7df3cf; }
+

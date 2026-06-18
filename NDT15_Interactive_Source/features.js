@@ -53,7 +53,7 @@ window.FEATS = [
   },
   {
     id: '05', name: 'Lá Chắn An Ninh AI', short: 'AN NINH', color: '#FF5468', phase: 2,
-    cp: [120, 35, -40], fp: [140, 80, -90], ft: [0, 10, -40],
+    cp: [284, 35, 2], fp: [320, 80, -50], ft: [284, 10, 2],
     desc: 'Vành đai an ninh & Drone tuần tra tự động.',
     painPoints: 'Điểm mù an ninh vùng nước cảng rộng lớn trong đêm/sương mù. Chi phí canô tuần tra thủ công đắt, không phủ sóng 360°. Nguy cơ xâm nhập trái phép.',
     mechanism: 'Radar quét sóng mặt nước liên tục phát hiện mục tiêu lạ. Tự động điều Drone UAV cất cánh trong 30s. AI phân tích video camera nhiệt xác định mức độ đe dọa.',

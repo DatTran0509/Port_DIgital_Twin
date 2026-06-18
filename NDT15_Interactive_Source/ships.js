@@ -105,15 +105,23 @@ export function initShips(coLayer0) {
 
   function generateShipData(nm, action) {
     const ports = ['Thượng Hải', 'Singapore', 'Rotterdam', 'Los Angeles', 'Hamburg', 'Dubai'];
+    const prevPort = ports[Math.floor(Math.random() * ports.length)];
+    let nextPort = ports[Math.floor(Math.random() * ports.length)];
+    if (nextPort === prevPort) nextPort = 'Tokyo'; // Just to be safe
     return {
       icon: '🚢', name: nm, subtitle: 'TÀU CONTAINER',
       details: {
         'Số IMO': 'IMO ' + Math.floor(1000000 + Math.random() * 8999999),
         'Năm SX': 2010 + Math.floor(Math.random() * 12),
-        'Cảng đi': ports[Math.floor(Math.random() * ports.length)],
-        'Cảng đến': ports[Math.floor(Math.random() * ports.length)],
+        'Cảng đi': prevPort,
+        'Cảng đến': nextPort,
         'Loại hàng': action === 'import' ? 'Điện tử, Tiêu dùng' : 'Nông sản, Dệt may'
-      }
+      },
+      route: [
+        { port: prevPort, status: 'past', time: '12 ngày trước' },
+        { port: 'Cảng NDT15', status: 'current', time: 'ETA: ' + (Math.floor(Math.random()*45)+5) + ' phút' },
+        { port: nextPort, status: 'future', time: 'ETA: ' + (Math.floor(Math.random()*5)+1) + ' ngày' }
+      ]
     };
   }
 
@@ -148,10 +156,10 @@ export function initShips(coLayer0) {
 
 export function vesselPose(v, el) {
   const lerp = (a, b, t) => a + (b - a) * t;
-  if (v.mode === 'dock') return { x: v.bx, z: BERTH_Z, ry: Math.PI, st: 'dock', spd: 0, docked: true };
+  if (v.mode === 'dock') return { x: v.bx, z: BERTH_Z, ry: Math.PI, st: 'dock', spd: 0, docked: true, progress: v.action === 'import' ? 'Đang dỡ hàng' : 'Đang bốc hàng', prgPct: 0.5, etaText: 'ETA hoàn tất: 45 phút' };
   if (v.mode === 'queue') {
     const r = 25, a = el * .1;
-    return { x: v.qx + Math.cos(a) * r, z: v.qz + Math.sin(a) * r, ry: -a + Math.PI, st: 'hold', spd: 0.5 };
+    return { x: v.qx + Math.cos(a) * r, z: v.qz + Math.sin(a) * r, ry: -a + Math.PI, st: 'hold', spd: 0.5, progress: 'Đang neo chờ', prgPct: 0.1, etaText: 'ETA vào bến: 2 giờ' };
   }
 
   const p = ((((el - v.t0) % v.dur) + v.dur) % v.dur) / v.dur;
@@ -172,7 +180,28 @@ export function vesselPose(v, el) {
     }
   }
   const docked = p >= .35 && p <= .62;
-  return { x, z, ry, st: docked ? 'berth' : (p < .35 ? 'inbound' : 'depart'), spd: docked ? 0 : 12, docked };
+  
+  let progressText, prgPct, etaText;
+  if (p < 0.35) { 
+    progressText = 'Đang tiến vào cảng'; 
+    prgPct = (p / 0.35) * 0.5; 
+    const minsLeft = Math.ceil((0.35 - p) * v.dur);
+    etaText = `ETA cập bến: ${minsLeft} phút`;
+  }
+  else if (p <= 0.62) { 
+    progressText = v.action === 'import' ? 'Đang dỡ hàng' : 'Đang bốc hàng'; 
+    prgPct = 0.5; 
+    const minsLeft = Math.ceil((0.62 - p) * v.dur);
+    etaText = `Hoàn tất sau: ${minsLeft} phút`;
+  }
+  else { 
+    progressText = 'Đang rời cảng'; 
+    prgPct = 0.5 + ((p - 0.62) / 0.38) * 0.5; 
+    const minsLeft = Math.ceil((1.0 - p) * v.dur);
+    etaText = `Rời khỏi khu vực sau: ${minsLeft} phút`;
+  }
+
+  return { x, z, ry, st: docked ? 'berth' : (p < .35 ? 'inbound' : 'depart'), spd: docked ? 0 : 12, docked, progress: progressText, prgPct, etaText };
 }
 
 let lastEl = -1;

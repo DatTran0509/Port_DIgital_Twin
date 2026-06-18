@@ -18,7 +18,8 @@ export function initTrucks() {
       g: tk.g, cargo: tk.cargo, hl: tk.hl, plate: tk.plate,
       x: laneX,
       outLane: isOutbound ? laneX : (laneX === -30 ? 10 : 30),
-      z: isOutbound ? (40 + (i - 4) * 20) : (140 + i * 40),
+      // Spawn outbound trucks inside the port (z=10, 25, 40, 55) so they drive OUT normally.
+      z: isOutbound ? (10 + (i - 4) * 15) : (140 + i * 40),
       spd: 20, // sped up slightly
       wait: 0,
       scanned: false,

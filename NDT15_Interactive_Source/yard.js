@@ -121,44 +121,80 @@ export function updateRtgCranes(dt) {
       if (rc.state === 0) { 
         rc.tZ = rc.tTrk.z - 11; 
         rc.state = 1; 
-        rc.cargo.visible = !rc.tTrk.isImport; // If Export, crane brings container. If Import, crane comes empty.
-        rc.cargo.material = rc.tTrk.cargo.material; // Match truck's container color
+        rc.cargo.visible = false; 
+        rc.cargo.material = rc.tTrk.cargo.material; 
       }
       else if (rc.state === 1) {
         rc.g.position.z += (rc.tZ - rc.g.position.z) * Math.min(1, dt * 2.5);
-        if (Math.abs(rc.g.position.z - rc.tZ) < 0.2) rc.state = 2;
+        if (Math.abs(rc.g.position.z - rc.tZ) < 0.2) {
+          rc.state = rc.tTrk.isImport ? 6 : 2; 
+        }
       }
+      // EXPORT ONLY: Pick up from block
       else if (rc.state === 2) {
-        const trkTgtX = rc.tTrk.yardLane + 1.5 - rc.bxv; 
-        rc.trX += (trkTgtX - rc.trX) * Math.min(1, dt * 2.5);
-        if (Math.abs(rc.trX - trkTgtX) < 0.2) rc.state = 3;
+        rc.h -= dt * 7;
+        if (rc.h <= 8) { rc.h = 8; rc.state = 3; }
       }
       else if (rc.state === 3) {
-        rc.h -= dt * 7;
-        if (rc.h <= 2) { rc.h = 2; rc.state = 4; }
+        rc.cargo.visible = true; 
+        rc.state = 4;
       }
       else if (rc.state === 4) {
-        if (rc.tTrk.isImport) {
-          rc.cargo.visible = true; // take from truck
-          rc.tTrk.cargo.visible = false;
-        } else {
-          rc.cargo.visible = false; // give to truck
-          rc.tTrk.cargo.visible = true;
-        }
-        rc.state = 5;
-      }
-      else if (rc.state === 5) {
         rc.h += dt * 7;
         if (rc.h >= 15) { rc.h = 15; rc.state = 6; }
       }
+      // COMMON: Move to truck
       else if (rc.state === 6) {
+        const trkTgtX = rc.tTrk.yardLane + 1.5 - rc.bxv; 
+        rc.trX += (trkTgtX - rc.trX) * Math.min(1, dt * 2.5);
+        if (Math.abs(rc.trX - trkTgtX) < 0.2) rc.state = 7;
+      }
+      // COMMON: Lower to truck
+      else if (rc.state === 7) {
+        rc.h -= dt * 7;
+        if (rc.h <= 2) { rc.h = 2; rc.state = 8; }
+      }
+      // COMMON: Swap cargo with truck
+      else if (rc.state === 8) {
+        if (rc.tTrk.isImport) {
+          rc.cargo.visible = true; 
+          rc.tTrk.cargo.visible = false;
+        } else {
+          rc.cargo.visible = false; 
+          rc.tTrk.cargo.visible = true;
+        }
+        rc.state = 9;
+      }
+      // COMMON: Raise from truck
+      else if (rc.state === 9) {
+        rc.h += dt * 7;
+        if (rc.h >= 15) { rc.h = 15; rc.state = 10; }
+      }
+      // COMMON: Move X to block center
+      else if (rc.state === 10) {
         rc.trX += (0 - rc.trX) * Math.min(1, dt * 2.5);
         if (Math.abs(rc.trX) < 0.2) {
-           rc.state = 0;
-           rc.cargo.visible = false; // Invisibly drop container into the block
-           rc.tTrk.state = 3.6; // Release truck
-           rc.tTrk = null;
+          rc.state = rc.tTrk.isImport ? 11 : 15;
         }
+      }
+      // IMPORT ONLY: Drop to block
+      else if (rc.state === 11) {
+        rc.h -= dt * 7;
+        if (rc.h <= 8) { rc.h = 8; rc.state = 12; }
+      }
+      else if (rc.state === 12) {
+        rc.cargo.visible = false;
+        rc.state = 13;
+      }
+      else if (rc.state === 13) {
+        rc.h += dt * 7;
+        if (rc.h >= 15) { rc.h = 15; rc.state = 15; }
+      }
+      // COMMON: Reset
+      else if (rc.state === 15) {
+        rc.state = 0;
+        rc.tTrk.state = 3.6; // Release truck
+        rc.tTrk = null;
       }
     }
     rc.trolley.position.x = rc.trX;
