@@ -77,7 +77,7 @@ window.addEventListener('pointerdown', (event) => {
       
       let dist = maxDim * 5; 
       if (clickedData.objType === 'ship') dist = maxDim * 2.2;
-      else if (clickedData.objType === 'uav') dist = maxDim * 6.0;
+      else if (clickedData.objType === 'uav') dist = maxDim * 8.0;
       if (dist < 25) dist = 25; 
       
       followCamOffset.copy(dir.multiplyScalar(dist));
@@ -390,9 +390,12 @@ function createFlagsAndEnergy() {
 
   // Wind Turbines scattered around
   const wtPos = [
-    [260, 100], [260, 0], [260, -100], // Phía bờ phải
-    [-260, 100], [-260, -100],         // Phía bờ trái
-    [150, -450], [-150, -400], [0, -500] // Ngoài biển (Offshore)
+    // 3 trên bờ (phía phải)
+    [280, 160], [280, 100], [280, 40],
+    // 3 trên bờ (phía trái)
+    [-280, 160], [-280, 100], [-280, 40],
+    // 6 ngoài khơi xa, dàn thành 1 hàng ngang tránh xa khu neo đậu tàu (-300)
+    [-250, -520], [-150, -520], [-50, -520], [50, -520], [150, -520], [250, -520]
   ];
   
   window.pendingTurbines = [];
