@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { scene, M, bx, cy, mat } from './core.js';
+import { scene, M, bx, cy, mat, portLights } from './core.js';
 
 export const barriers = [];
 
@@ -60,6 +60,15 @@ export function initGate() {
     const arm = new THREE.Mesh(new THREE.BoxGeometry(15.0, 0.4, 0.4), armMat);
     arm.position.set(-7.5, 0, 0);
     bgrp.add(arm);
+    
+    // Add gate lighting
+    const pl = new THREE.SpotLight(0xfff0c0, 1500, 150, Math.PI / 3, 0.5, 1.5);
+    pl.position.set(x, 17, 0); // Above the arch
+    pl.target.position.set(x, 0, bZ * 1.5); // Pointing at the lane
+    const lg = new THREE.Group();
+    lg.position.copy(gateg.position);
+    lg.add(pl); lg.add(pl.target);
+    portLights.add(lg);
     
     barriers.push({ grp: bgrp, armMat: armMat, lane: x, screenIdx: i, status: 0 });
   });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { scene, M, cMats, bx, cy, sp, cable, mat } from './core.js';
+import { scene, M, cMats, bx, cy, sp, cable, mat, portLights } from './core.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export const BERTH_Z = -22;
 export const berthXs = [-150, -90, -30, 30, 90, 150]; // Expanded spacing
@@ -9,7 +10,6 @@ export const pings = [];
 export const aisEls = [];
 export const longCranes = [];
 
-const vesselHulls = [];
 const berthCanvases = [];
 const berthTexs = [];
 const berthMats = [];
@@ -24,52 +24,50 @@ for (let i = 0; i < 6; i++) {
   berthMats.push(new THREE.MeshBasicMaterial({ map: tex }));
 }
 
-function buildVessel(hull, stripe) {
+function loadVesselGLB() {
   const g = new THREE.Group();
-  const hm = mat(hull, 0.4, 0.6);
-  const hMain = bx(g, 62, 8, 14, hm, 0, -8, 0);
   
-  const bw = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 8, 24), hm);
-  bw.scale.set(10 / 7, 1, 1); bw.position.set(-31, -4, 0); bw.castShadow = bw.receiveShadow = true; g.add(bw);
-  
-  const st = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 8, 24), hm);
-  st.scale.set(6 / 7, 1, 1); st.position.set(31, -4, 0); st.castShadow = st.receiveShadow = true; g.add(st);
-  
-  bx(g, 62, 0.2, 13.8, mat(0x203040, 0.8, 0.2), 0, 0, 0);
-  
-  const stripeMat = mat(stripe, 0.2, 0.8, stripe, 0.8);
-  bx(g, 62, 0.4, 14.2, stripeMat, 0, -1.5, 0, false);
-  const bwStr = new THREE.Mesh(new THREE.CylinderGeometry(7.1, 7.1, 0.4, 24), stripeMat);
-  bwStr.scale.set(10 / 7, 1, 1); bwStr.position.set(-31, -1.3, 0); g.add(bwStr);
-  const stStr = new THREE.Mesh(new THREE.CylinderGeometry(7.1, 7.1, 0.4, 24), stripeMat);
-  stStr.scale.set(6 / 7, 1, 1); stStr.position.set(31, -1.3, 0); g.add(stStr);
-  
-  const supMat = mat(0xffffff, 0.3, 0.1);
-  const glassMat = mat(0x050d1a, 0.1, 0.9);
-  
-  bx(g, 16, 3, 13, supMat, 18, 0.2, 0);
-  bx(g, 14, 2.5, 12.5, glassMat, 18, 3.2, 0);
-  bx(g, 14.5, 0.8, 13.5, supMat, 18, 5.7, 0);
-  bx(g, 14.8, 0.15, 13.8, mat(0x34E0F0, 0.2, 0.8, 0x34E0F0, 1.2), 18, 5.85, 0, false);
-  bx(g, 10, 2, 10, glassMat, 16, 6.5, 0);
-  bx(g, 11, 0.8, 11, supMat, 16, 8.5, 0);
-  
-  cy(g, 4.5, 0.4, mat(0x203040, 0.8, 0.2), 29, 3.2, 0);
-  cy(g, 4.0, 0.45, stripeMat, 29, 3.2, 0, false);
-  
-  cy(g, 0.5, 8, supMat, 16, 9.3, 0);
-  bx(g, 3, 0.4, 0.4, supMat, 16, 16, 0);
-  sp(g, 1.2, supMat, 16, 17.5, 0);
-  
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 4; j++) {
-      if (Math.random() > 0.1) {
-        bx(g, 3.8, 2.6, 6.4, cMats[(i + j) % 4].clone(), -26 + i * 4.2, 0.2, -4.5 + j * 3);
-      }
+  new GLTFLoader().load('assets/container_ship.glb', (gltf) => {
+    const mesh = gltf.scene;
+    
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    
+    if (size.z > size.x) {
+       mesh.rotation.y = Math.PI / 2;
     }
-  }
-  g.scale.setScalar(0.7); // Make ships slightly smaller to avoid collisions
-  scene.add(g); vesselHulls.push(hMain, g);
+    
+    mesh.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(mesh);
+    const size2 = new THREE.Vector3();
+    box2.getSize(size2);
+    
+    const scale = 62 / size2.x;
+    mesh.scale.setScalar(scale);
+    
+    mesh.updateMatrixWorld(true);
+    const box3 = new THREE.Box3().setFromObject(mesh);
+    const center = new THREE.Vector3();
+    box3.getCenter(center);
+    
+    mesh.position.x -= center.x;
+    mesh.position.z -= center.z;
+    mesh.position.y -= box3.min.y;
+    mesh.position.y -= 8.5; // Submerge the ship deeper to touch water
+    
+    mesh.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    g.add(mesh);
+  });
+  
+  g.scale.setScalar(0.7);
+  scene.add(g);
   return g;
 }
 
@@ -83,13 +81,13 @@ export function initShips(coLayer0) {
   });
 
   vessels.push(
-    { g: buildVessel(0x172638, 0x1e3a70), mode: 'cycle', bx: -90, t0: 0, dur: 110, cz: -120, nm: 'MSC ARIA', action: 'import' },
-    { g: buildVessel(0x1c2c3e, 0x2a5088), mode: 'cycle', bx: 30, t0: 36, dur: 110, cz: -200, nm: 'EVER LINK', action: 'export' },
-    { g: buildVessel(0x334455, 0x1188ff), mode: 'cycle', bx: 150, t0: 73, dur: 110, cz: -280, nm: 'MAERSK ALFA', action: 'import' },
-    { g: buildVessel(0x172638, 0x1e3a70), mode: 'dock', bx: -30, nm: 'OCEAN KING', action: 'export' },
-    { g: buildVessel(0x14222f, 0x244a6a), mode: 'queue', qx: 80, qz: -300, nm: 'OOCL STAR', action: 'import' },
-    { g: buildVessel(0x1b2c3e, 0x2a5088), mode: 'queue', qx: 250, qz: -350, nm: 'MAERSK LINE', action: 'export' },
-    { g: buildVessel(0x172638, 0x1e3a70), mode: 'queue', qx: -200, qz: -280, nm: 'COSCO SHIPPING', action: 'import' }
+    { g: loadVesselGLB(), mode: 'cycle', bx: -90, t0: 0, dur: 110, cz: -120, nm: 'MSC ARIA', action: 'import' },
+    { g: loadVesselGLB(), mode: 'cycle', bx: 30, t0: 36, dur: 110, cz: -200, nm: 'EVER LINK', action: 'export' },
+    { g: loadVesselGLB(), mode: 'cycle', bx: 150, t0: 73, dur: 110, cz: -280, nm: 'MAERSK ALFA', action: 'import' },
+    { g: loadVesselGLB(), mode: 'dock', bx: -30, nm: 'OCEAN KING', action: 'export' },
+    { g: loadVesselGLB(), mode: 'queue', qx: 80, qz: -300, nm: 'OOCL STAR', action: 'import' },
+    { g: loadVesselGLB(), mode: 'queue', qx: 250, qz: -350, nm: 'MAERSK LINE', action: 'export' },
+    { g: loadVesselGLB(), mode: 'queue', qx: -200, qz: -280, nm: 'COSCO SHIPPING', action: 'import' }
   );
 
   vessels.forEach((v, i) => {
@@ -202,6 +200,22 @@ function buildLongCrane(x, idx) {
   const spreader = bx(g, 8.5, 1.5, 14, M.crane, 0, 38, 0);
   const rope = cable(g, new THREE.Vector3(0, 44, 0), new THREE.Vector3(0, 38, 0), M.rope);
   const cargo = bx(g, 3.4, 2.6, 6.4, cMats[1], 0, 36, 0);
+  
+  // Lights attached to portLights but positioned relative to this crane
+  const lg = new THREE.Group();
+  lg.position.set(x, 5, -1);
+  const pl1 = new THREE.SpotLight(0xffeeb3, 2000, 200, Math.PI / 4, 0.5, 1.5);
+  pl1.position.set(0, 46, -12);
+  pl1.target.position.set(0, -5, -30); // Pointing at ship
+  lg.add(pl1); lg.add(pl1.target);
+  
+  const pl2 = new THREE.SpotLight(0xffeeb3, 2000, 200, Math.PI / 4, 0.5, 1.5);
+  pl2.position.set(0, 46, 12);
+  pl2.target.position.set(0, -5, 30); // Pointing at yard
+  lg.add(pl2); lg.add(pl2.target);
+  
+  portLights.add(lg);
+
   longCranes.push({ g, trolley, spreader, rope, cargo, cy: 0, bx: x });
   return g;
 }

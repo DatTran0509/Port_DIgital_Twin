@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { scene, camera, M, ambLight, hemiLight, sun } from './core.js';
+import { scene, camera, M, ambLight, hemiLight, sun, renderer, portLights } from './core.js';
 import { vessels } from './ships.js';
 import { trucks } from './trucks.js';
 
@@ -49,19 +49,31 @@ export function initUI(orbit, berthMeshes, containerMeshes, gateg, radarG, buoyM
     e.target.textContent = isDay ? '☾ Night Mode' : '☀ Day Mode';
     document.body.classList.toggle('day-mode', isDay);
     if (isDay) {
-      scene.background.setHex(0x99c2df); 
-      scene.fog.color.setHex(0x99c2df);
+      if (scene.userData.skyDay) {
+        scene.background = scene.userData.skyDay;
+        scene.environment = scene.userData.skyDay;
+      }
+      if (scene.fog && scene.fog.color) scene.fog.color.setHex(0x8ba5b3);
+      renderer.toneMappingExposure = 1.0;
       ambLight.color.setHex(0x90a8c0); ambLight.intensity = 1.2;
       hemiLight.color.setHex(0xd0e8f8); hemiLight.groundColor.setHex(0x506070); hemiLight.intensity = 1.0;
       sun.intensity = 4.5;
+      portLights.visible = false;
       M.mark.emissiveIntensity = 0; M.barr.emissiveIntensity = 0; M.radar.emissiveIntensity = 0; M.buoy.emissiveIntensity = 0; M.gate.emissiveIntensity = 0;
       trucks.forEach(tk => { if (tk.hl && tk.hl.mats) tk.hl.mats.forEach(m => m.emissiveIntensity = 0) });
     } else {
-      scene.background.setHex(0x101e33);
-      scene.fog.color.setHex(0x101e33);
+      if (scene.userData.skyNight) {
+        scene.background = scene.userData.skyNight;
+        scene.environment = scene.userData.skyNight;
+      } else {
+        if (scene.background && scene.background.setHex) scene.background.setHex(0x101e33);
+      }
+      if (scene.fog && scene.fog.color) scene.fog.color.setHex(0x101e33);
+      renderer.toneMappingExposure = 0.8; // Night EXR handles the darkness, we just lower slightly
       ambLight.color.setHex(0x28456b); ambLight.intensity = 1.4;
       hemiLight.color.setHex(0x2a4c7c); hemiLight.groundColor.setHex(0x101f35); hemiLight.intensity = 1.0;
-      sun.intensity = 2.8;
+      sun.intensity = 0.2; // Moon light essentially
+      portLights.visible = true;
       M.mark.emissiveIntensity = 0.18; M.barr.emissiveIntensity = 0.25; M.radar.emissiveIntensity = 0.7; M.buoy.emissiveIntensity = 0.5; M.gate.emissiveIntensity = 0.8;
       trucks.forEach(tk => { if (tk.hl && tk.hl.mats) tk.hl.mats.forEach(m => m.emissiveIntensity = 2.0) });
     }
@@ -469,7 +481,8 @@ const _v = new THREE.Vector3();
 export function projAt(el, x, y, z, padL, padR) {
   _v.set(x, y, z).project(camera);
   const sx = (_v.x * .5 + .5) * innerWidth, sy = (-_v.y * .5 + .5) * innerHeight;
-  el.style.transform = `translate(${sx}px, ${sy}px) ${el.dataset.tr || ''}`;
+  // Hardware-accelerated 3D transform with rounded subpixels for max performance
+  el.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) ${el.dataset.tr || ''}`;
   return _v.z < 1 && sx > padL && sx < innerWidth - padR && sy > 60 && sy < innerHeight - 60;
 }
 
