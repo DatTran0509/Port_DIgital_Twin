@@ -84,6 +84,22 @@ function buildTruck(col) {
   truckGroup.add(g); return { g, cargo, hl, plate };
 }
 
+function setTruckOpacity(tk, alpha) {
+  if (tk.lastAlpha === alpha) return;
+  tk.lastAlpha = alpha;
+  const isTrans = alpha < 0.99;
+  tk.g.traverse(c => {
+    if (c.isMesh && c.material) {
+      if (!c.userData.origMat) {
+         c.userData.origMat = c.material;
+         c.material = c.material.clone();
+      }
+      c.material.transparent = isTrans;
+      c.material.opacity = alpha;
+    }
+  });
+}
+
 export function updateTrucks(dt, barriers, updateGateScreens) {
   const barLift = [0, 0, 0, 0];
   const tLanes = [-30, -10, 10, 30]; // Updated gate lanes
@@ -104,18 +120,39 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
     if (tk.wait > 0) { tk.wait -= dt; return; }
     const tdt = dt * tk.spd;
 
-    // Smart collision avoidance on main roads
+    // Smart collision avoidance (All lanes & yard)
     let safeDist = true;
-    const isMainLane = (x) => Math.abs(x + 30) < 2 || Math.abs(x + 10) < 2 || Math.abs(x - 10) < 2 || Math.abs(x - 30) < 2;
-    if (isMainLane(tk.x)) {
-      for (const o of trucks) {
-        if (o !== tk && Math.abs(o.x - tk.x) < 2 && isMainLane(o.x)) {
-          if (tk.x < 0 && tk.z > o.z && tk.z - o.z < 25) safeDist = false; // Inbound lanes (-30, -10)
-          if (tk.x > 0 && tk.z < o.z && o.z - tk.z < 25) safeDist = false; // Outbound lanes (10, 30)
+    for (const o of trucks) {
+      if (o !== tk) {
+        const d = Math.hypot(o.x - tk.x, o.z - tk.z);
+        if (d < 24) { 
+           const fwdX = -Math.sin(tk.g.rotation.y);
+           const fwdZ = -Math.cos(tk.g.rotation.y);
+           
+           const o_fwdX = -Math.sin(o.g.rotation.y);
+           const o_fwdZ = -Math.cos(o.g.rotation.y);
+           
+           // Chỉ tránh nhau nếu đang đi cùng hướng (cùng lane)
+           const sameDir = (fwdX * o_fwdX + fwdZ * o_fwdZ) > 0.5;
+           
+           if (sameDir) {
+               const rightX = fwdZ, rightZ = -fwdX;
+               const toOX = o.x - tk.x, toOZ = o.z - tk.z;
+               const dotFwd = fwdX * toOX + fwdZ * toOZ;
+               const dotRight = rightX * toOX + rightZ * toOZ;
+               // Nếu xe KIA nằm phía TRƯỚC (dotFwd > 10) và cùng làn đường (dotRight < 5)
+               if (dotFwd > 10 && Math.abs(dotRight) < 5.0) safeDist = false;
+           }
         }
       }
     }
     if (!safeDist) return;
+    
+    // Alpha fading effect when entering/leaving far away
+    let alpha = 1.0;
+    if (tk.state === 7 && tk.z > 250) alpha = Math.max(0, (300 - tk.z) / 50.0);
+    else if (tk.state === 0 && tk.z > 250) alpha = Math.max(0, (300 - tk.z) / 50.0);
+    setTruckOpacity(tk, alpha);
 
     let reached = false;
     
@@ -124,11 +161,11 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
       const d = Math.hypot(dx, dz);
       if (d <= maxD) { 
         obj.x = tx; obj.z = tz; 
-        obj.g.rotation.y = Math.atan2(dx, dz) + Math.PI; // Fixed backward rotation
+        if (d > 0.001) obj.g.rotation.y = Math.atan2(dx, dz) + Math.PI; 
         return true; 
       }
       obj.x += (dx / d) * maxD; obj.z += (dz / d) * maxD;
-      obj.g.rotation.y = Math.atan2(dx, dz) + Math.PI; // Fixed backward rotation
+      obj.g.rotation.y = Math.atan2(dx, dz) + Math.PI;
       return false;
     }
 
@@ -234,9 +271,26 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
              updateGateScreens();
            }
         }
-        reached = moveTowards(tk, tk.outLane, 200, tdt);
+        reached = moveTowards(tk, tk.outLane, 300, tdt);
         if (reached) {
-          tk.x = [-30, -10][Math.floor(Math.random() * 2)];
+          let newX = [-30, -10][Math.floor(Math.random() * 2)];
+          let newZ = 300;
+          
+          // Tránh lỗi sinh ra đè lên nhau: lùi xe lại nếu vị trí spawn đang có xe khác
+          let conflict = true;
+          while (conflict) {
+             conflict = false;
+             for (const o of trucks) {
+                if (o !== tk && o.state === 0 && Math.abs(o.x - newX) < 2 && Math.abs(o.z - newZ) < 30) {
+                   newZ += 30;
+                   conflict = true;
+                   break;
+                }
+             }
+          }
+
+          tk.x = newX;
+          tk.z = newZ;
           tk.yardLane = yardLanes[Math.floor(Math.random() * yardLanes.length)];
           tk.outLane = tk.x === -30 ? 10 : 30;
           tk.state = 0; 
