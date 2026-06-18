@@ -23,9 +23,9 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 function initEnvironment() {
   const loader = new EXRLoader();
-  loader.setDataType(THREE.FloatType);
+  loader.setDataType(THREE.HalfFloatType);
 
-  loader.load('assets/HdrSkyEvening006_HDR_8K.exr', function(texture) {
+  loader.load('assets/HdrSkyMorning004_HDR_8K.exr', function (texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     scene.environment = texture;
@@ -39,18 +39,18 @@ function createOceanZone() {
     {
       textureWidth: 512,
       textureHeight: 512,
-      waterNormals: new THREE.TextureLoader().load('assets/waternormals.jpg', function(texture) {
+      waterNormals: new THREE.TextureLoader().load('assets/waternormals.jpg', function (texture) {
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       }),
       sunDirection: sun.position.clone().normalize(),
       sunColor: 0xffffff,
-      waterColor: 0x000a14,
+      waterColor: 0x002c5c,
       distortionScale: 3.7,
       fog: scene.fog !== undefined
     }
   );
   water.rotation.x = -Math.PI / 2;
-  water.position.set(0, 0, -10000); 
+  water.position.set(0, 0, -10000);
   scene.add(water);
 }
 
@@ -75,7 +75,7 @@ function createLandmassZone() {
 
   const land = new THREE.Mesh(landGeo, landMat);
   land.rotation.x = -Math.PI / 2;
-  land.position.set(0, 0.5, 10000); 
+  land.position.set(0, 0.5, 10000);
   land.receiveShadow = true;
   scene.add(land);
 }
@@ -83,23 +83,23 @@ function createLandmassZone() {
 function loadModels() {
   new GLTFLoader().load('assets/low_poly_night_city_building_skyline.glb', (gltf) => {
     const city = gltf.scene;
-    
-    city.rotation.y = Math.PI; 
+
+    city.rotation.y = Math.PI;
     city.scale.setScalar(4);
     city.updateMatrixWorld(true);
-    
+
     const box = new THREE.Box3().setFromObject(city);
     const center = new THREE.Vector3();
     box.getCenter(center);
-    
+
     city.position.x -= center.x;
     city.position.z -= center.z;
-    city.position.z += 1000; 
+    city.position.z += 1000;
     city.position.y -= box.min.y;
     city.position.y += 0.5;
 
     city.traverse(c => {
-      if(c.isMesh) {
+      if (c.isMesh) {
         c.castShadow = true;
         c.receiveShadow = true;
       }
@@ -115,20 +115,20 @@ function setupCoreScene() {
 
   // Ground Base
   bx(scene, 600, .4, 68, M.yard, 0, 4.6, 40);
-  bx(scene, 100, .4, 255, M.road, 0, 4.6, 177.5); // Main crossroad expanded
-  bx(scene, 580, .4, 12, M.road, 0, 4.6, 62);
+  bx(scene, 100, .4, 255, M.road, 0, 4.62, 177.5); // Main crossroad expanded
+  bx(scene, 580, .4, 12, M.road, 0, 4.62, 62);
 
   const m_white = mat(0xffffff, .9);
   const m_yellow = mat(0xffcc00, .9);
   // Vertical road lines
   for (let z = 62; z < 300; z += 6) {
-    bx(scene, 0.4, .45, 3, m_white, -20, 4.6, z);
-    bx(scene, 0.4, .45, 3, m_yellow, 0, 4.6, z);
-    bx(scene, 0.4, .45, 3, m_white, 20, 4.6, z);
+    bx(scene, 0.4, .45, 3, m_white, -20, 4.65, z);
+    bx(scene, 0.4, .45, 3, m_yellow, 0, 4.65, z);
+    bx(scene, 0.4, .45, 3, m_white, 20, 4.65, z);
   }
   // Horizontal road lines
   for (let x = -280; x < 280; x += 6) {
-    if (Math.abs(x) > 50) bx(scene, 3, .45, 0.4, m_white, x, 4.6, 62);
+    if (Math.abs(x) > 50) bx(scene, 3, .45, 0.4, m_white, x, 4.65, 62);
   }
 
   // Radar Mast
@@ -158,14 +158,14 @@ function setupCoreScene() {
 
   // Warehouses
   {
-    const whMat = new THREE.MeshStandardMaterial({ color: 0xc8d8e8, roughness: 0.5, metalness: 0.1 }); 
+    const whMat = new THREE.MeshStandardMaterial({ color: 0xc8d8e8, roughness: 0.5, metalness: 0.1 });
     const rfMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: 0.8 });
     [{ x: -140, z: 148 }, { x: 140, z: 148 }].forEach(({ x, z }) => {
       bx(scene, 100, 14, 26, whMat, x, 5, z);
       bx(scene, 102, 2, 28, rfMat, x, 19, z);
       [-40, 40].forEach(ox => cy(scene, 0.3, 10, M.crane, x + ox, 5, z - 15));
     });
-    bx(scene, 600, 0.3, 70, new THREE.MeshStandardMaterial({ color: 0x0f1720, roughness: 0.95 }), 0, 5.05, 160);
+    bx(scene, 600, 0.3, 70, new THREE.MeshStandardMaterial({ color: 0x0f1720, roughness: 0.95 }), 0, 4.5, 160);
   }
 
   // UAV PATROL DRONES
@@ -219,13 +219,13 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05), el = clock.getElapsedTime();
   orbit.update();
-  
+
   if (water) {
-    water.material.uniforms[ 'time' ].value += 1.0 / 60.0; // Steady time step avoids jerking
+    water.material.uniforms['time'].value += 1.0 / 60.0; // Steady time step avoids jerking
   }
 
   if (Math.floor(el * 2) > Math.floor((el - dt) * 2)) {
-     updateBerthScreens(el);
+    updateBerthScreens(el);
   }
 
   radarDisk.rotation.y += dt * .9; sweepMesh.rotation.y += dt * .9;
@@ -234,27 +234,28 @@ function animate() {
 
   vessels.forEach((v, i) => {
     const ps = vesselPose(v, el);
-    v.ps = ps; 
+    v.ps = ps;
     if (ps.docked) dockedBerths[v.bx] = v;
     v.g.position.set(ps.x, Math.sin(el * .7 + i) * .3 + 4.8, ps.z);
     let diff = ps.ry - v.g.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     v.g.rotation.y += diff * Math.min(1, dt * 1.5);
-    
+
     if (v.mode === 'cycle') {
       const p = ((((el - v.t0) % v.dur) + v.dur) % v.dur) / v.dur;
       let op = 1;
       if (p < 0.05) op = p / 0.05;
       else if (p > 0.95) op = (1.0 - p) / 0.05;
-      v.g.traverse(c => {
-        if (c.isMesh && c.material) {
-          c.material.transparent = true;
-          if (c.material.origOp === undefined) c.material.origOp = c.material.opacity;
-          c.material.opacity = c.material.origOp * op;
-          c.material.depthWrite = op > 0.99;
-        }
-      });
+      if (v.op !== op) {
+        v.op = op;
+        v.g.traverse(c => {
+          if (c.isMesh && c.material) {
+            if (c.material.origOp === undefined) c.material.origOp = c.material.opacity;
+            c.material.opacity = c.material.origOp * op;
+          }
+        });
+      }
     }
 
     const pg = pings[i], ph = ((el + pg.off) % 2.6) / 2.6, s = 1 + ph * 9;
@@ -269,24 +270,24 @@ function animate() {
     let sz, sh;
     if (isDocked && lc.lifts < lc.maxLifts) {
       const prevScp = lc.scp || 0;
-      lc.scp = (prevScp + dt / 14.3) % 1; 
+      lc.scp = (prevScp + dt / 14.3) % 1;
       if (lc.scp < prevScp) { lc.lifts++; lc.isImport = activeShip.action === 'import'; }
       const scp = lc.scp;
-      
+
       const sz1 = lc.isImport ? -21 : 38;
       const sz2 = lc.isImport ? 38 : -21;
       const sh1 = lc.isImport ? 8.1 : 10;
       const sh2 = lc.isImport ? 10 : 8.1;
 
-      if (scp < .08)       { sz = sz1; sh = lerp(32, sh1, scp / .08); }
-      else if (scp < .16)  { sz = sz1; sh = lerp(sh1, 32, (scp - .08) / .08); }
-      else if (scp < .46)  { sz = lerp(sz1, sz2, (scp - .16) / .30); sh = 32; }
-      else if (scp < .54)  { sz = sz2;  sh = lerp(32, sh2, (scp - .46) / .08); }
-      else if (scp < .62)  { sz = sz2;  sh = lerp(sh2, 32, (scp - .54) / .08); }
-      else                 { sz = lerp(sz2, sz1, (scp - .62) / .38); sh = 32; }
-      
+      if (scp < .08) { sz = sz1; sh = lerp(32, sh1, scp / .08); }
+      else if (scp < .16) { sz = sz1; sh = lerp(sh1, 32, (scp - .08) / .08); }
+      else if (scp < .46) { sz = lerp(sz1, sz2, (scp - .16) / .30); sh = 32; }
+      else if (scp < .54) { sz = sz2; sh = lerp(32, sh2, (scp - .46) / .08); }
+      else if (scp < .62) { sz = sz2; sh = lerp(sh2, 32, (scp - .54) / .08); }
+      else { sz = lerp(sz2, sz1, (scp - .62) / .38); sh = 32; }
+
       lc.cargo.visible = (scp > .08 && scp < .54);
-      lc.idleSz = sz; 
+      lc.idleSz = sz;
     } else {
       const th = 42;
       lc.spreader.position.y += (th - lc.spreader.position.y) * Math.min(1, dt * 2);
@@ -294,9 +295,9 @@ function animate() {
       sz = lc.trolley.position.z; sh = lc.spreader.position.y;
     }
     lc.trolley.position.z = sz; lc.spreader.position.z = sz;
-    lc.cargo.position.z = sz;   lc.cargo.position.y = sh - 2;
+    lc.cargo.position.z = sz; lc.cargo.position.y = sh - 2;
     lc.spreader.position.y = sh;
-    lc.rope.position.z = sz;    lc.rope.position.y = (44 + sh) / 2;
+    lc.rope.position.z = sz; lc.rope.position.y = (44 + sh) / 2;
     lc.rope.scale.y = (44 - sh) / 10;
   });
 
