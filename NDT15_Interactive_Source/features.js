@@ -36,7 +36,7 @@ window.FEATS = [
   },
   {
     id: '03', name: 'Hệ Thống Cổng Tự Động', short: 'CỔNG', color: '#4D8DF6', phase: 1, core: true,
-    cp: [25, 25, 85], fp: [25, 40, 200], ft: [0, 5, 140],
+    cp: [25, 25, 85], fp: [25, 40, 200], ft: [10, 5, 120],
     desc: 'Tự động hóa cổng cảng & điều tiết giao thông.',
     painPoints: 'Gate Chaos – kẹt xe đầu kéo nhiều km tại cổng cảng vào giờ cao điểm. Quy trình thông quan thủ công tốn 30 phút, gây thiệt hại dây chuyền cho logistics.',
     mechanism: 'Lớp TIS kết hợp CIM thiết lập hệ thống đặt chỗ (Truck Booking Slot). Camera AI quét biển số (ALPR) đối chiếu lệnh điện tử và mở barrier dưới 2 giây. Số hóa 100%.',

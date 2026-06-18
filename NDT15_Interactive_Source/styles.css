@@ -110,7 +110,6 @@ body.day-mode{background:#b8d4e8}
 
 body.hide-ui #left-sidebar.open { left: -420px !important; }
 body.hide-ui #panel.open { right: -430px !important; }
-body.hide-ui #fnav { bottom: -100px !important; transition: bottom 0.3s; }
 #fnav { transition: bottom 0.3s; }
 
 /* Left Sidebar for Charts */

@@ -46,7 +46,7 @@ window.addEventListener('pointerdown', (event) => {
     let curr = intersects[0].object;
     let clickedData = null;
     let clickedGroup = null;
-    while(curr) {
+    while (curr) {
       if (curr.userData && curr.userData.isClickable) {
         clickedData = curr.userData;
         clickedGroup = curr;
@@ -60,35 +60,38 @@ window.addEventListener('pointerdown', (event) => {
 
       const targetPos = new THREE.Vector3();
       activeFollowTarget.getWorldPosition(targetPos);
-      
+
       const dir = new THREE.Vector3().subVectors(camera.position, orbit.target).normalize();
-      if(dir.lengthSq() < 0.1) dir.set(0, 0.5, 1).normalize();
-      
+      if (dir.lengthSq() < 0.1) dir.set(0, 0.5, 1).normalize();
+
       // Đảm bảo góc nhìn từ trên xuống một chút để bao quát toàn bộ
       if (dir.y < 0.35) {
-         dir.y = 0.5;
-         dir.normalize();
+        dir.y = 0.5;
+        dir.normalize();
       }
 
       // Tính toán kích thước thật của vật thể (Bounding Box) để quyết định khoảng cách zoom
       const box = new THREE.Box3().setFromObject(clickedGroup);
       const size = new THREE.Vector3(); box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
-      
-      let dist = maxDim * 5; 
+
+      let dist = maxDim * 5;
       if (clickedData.objType === 'ship') dist = maxDim * 2.2;
       else if (clickedData.objType === 'uav') dist = maxDim * 8.0;
-      if (dist < 25) dist = 25; 
-      
+      else if (clickedData.objType === 'energy') dist = maxDim * 3.0;
+      else if (clickedData.objType === 'truck') dist = maxDim * 8.0;
+
+      if (dist < 25) dist = 25;
+
       followCamOffset.copy(dir.multiplyScalar(dist));
-      
+
       // Tính tâm Bounding Box để focus chính giữa vật thể thay vì origin (dưới sàn)
       const objOrigin = new THREE.Vector3();
       clickedGroup.getWorldPosition(objOrigin);
       const center = new THREE.Vector3();
       box.getCenter(center);
       window.followTargetOffset = center.clone().sub(objOrigin);
-      
+
       showObjectInfo(clickedData.data, clickedData.objType);
     } else {
       activeFollowTarget = null;
@@ -189,7 +192,7 @@ function loadModels() {
     });
     scene.add(city);
   });
-  
+
   // Preload Wind Turbine
   new GLTFLoader().load('assets/wind_turbine.glb', (gltf) => {
     const mesh = gltf.scene;
@@ -198,18 +201,18 @@ function loadModels() {
     const size = new THREE.Vector3(); box.getSize(size);
     const scale = 50 / size.y; // Target height ~50
     mesh.scale.setScalar(scale);
-    
+
     mesh.updateMatrixWorld(true);
     const box2 = new THREE.Box3().setFromObject(mesh);
     const center = new THREE.Vector3(); box2.getCenter(center);
     mesh.position.x -= center.x;
     mesh.position.z -= center.z;
     mesh.position.y -= box2.min.y;
-    
+
     mesh.traverse(c => {
       if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
     });
-    
+
     window.sharedTurbineMesh = mesh;
     window.turbineAnimations = gltf.animations;
     if (window.pendingTurbines) {
@@ -332,36 +335,36 @@ function createFlagsAndEnergy() {
   cvsFront.width = 1024; cvsFront.height = 682;
   const ctxF = cvsFront.getContext('2d');
   ctxF.fillStyle = '#ffffff'; ctxF.fillRect(0, 0, cvsFront.width, cvsFront.height);
-  
+
   const cvsBack = document.createElement('canvas');
   cvsBack.width = 1024; cvsBack.height = 682;
   const ctxB = cvsBack.getContext('2d');
   ctxB.fillStyle = '#ffffff'; ctxB.fillRect(0, 0, cvsBack.width, cvsBack.height);
-  
+
   const texF = new THREE.CanvasTexture(cvsFront); texF.colorSpace = THREE.SRGBColorSpace; texF.anisotropy = 16;
   const texB = new THREE.CanvasTexture(cvsBack); texB.colorSpace = THREE.SRGBColorSpace; texB.anisotropy = 16;
-  
+
   const img = new Image();
   img.src = 'assets/logo_ndt.png';
   img.onload = () => {
     const lw = cvsFront.width * 0.65;
     const lh = (img.height / img.width) * lw;
     // Front
-    ctxF.drawImage(img, (cvsFront.width - lw)/2, (cvsFront.height - lh)/2, lw, lh);
+    ctxF.drawImage(img, (cvsFront.width - lw) / 2, (cvsFront.height - lh) / 2, lw, lh);
     texF.needsUpdate = true;
-    
+
     // Back (flipped horizontally)
     ctxB.translate(cvsBack.width, 0);
     ctxB.scale(-1, 1);
-    ctxB.drawImage(img, (cvsBack.width - lw)/2, (cvsBack.height - lh)/2, lw, lh);
+    ctxB.drawImage(img, (cvsBack.width - lw) / 2, (cvsBack.height - lh) / 2, lw, lh);
     texB.needsUpdate = true;
   };
-  
+
   globalFlagGeo = new THREE.PlaneGeometry(6, 4, 25, 12);
   globalFlagGeo.translate(3, 0, 0); // Move origin to left edge
   const fpos = globalFlagGeo.attributes.position;
   globalFlagGeo.userData = { initZ: new Float32Array(fpos.count) };
-  for(let i=0; i<fpos.count; i++) globalFlagGeo.userData.initZ[i] = fpos.getZ(i);
+  for (let i = 0; i < fpos.count; i++) globalFlagGeo.userData.initZ[i] = fpos.getZ(i);
 
   const matF = new THREE.MeshStandardMaterial({ map: texF, side: THREE.FrontSide, roughness: 0.9, metalness: 0.0 });
   const matB = new THREE.MeshStandardMaterial({ map: texB, side: THREE.BackSide, roughness: 0.9, metalness: 0.0 });
@@ -380,7 +383,7 @@ function createFlagsAndEnergy() {
     const fmBack = new THREE.Mesh(globalFlagGeo, matB);
     fmFront.castShadow = true; fmFront.receiveShadow = true;
     fmBack.castShadow = true; fmBack.receiveShadow = true;
-    
+
     const fGroup = new THREE.Group();
     fGroup.add(fmFront); fGroup.add(fmBack);
     fGroup.position.set(fx, 18, fz);
@@ -397,16 +400,16 @@ function createFlagsAndEnergy() {
     // 6 ngoài khơi xa, dàn thành 1 hàng ngang tránh xa khu neo đậu tàu (-300)
     [-250, -520], [-150, -520], [-50, -520], [50, -520], [150, -520], [250, -520]
   ];
-  
+
   window.pendingTurbines = [];
   wtPos.forEach(([wx, wz], i) => {
     const wGroup = new THREE.Group(); wGroup.position.set(wx, wz < -100 ? -2 : 0, wz); // Offshore is slightly lower
     scene.add(wGroup);
-    
+
     const setupTurbine = () => {
       const clone = window.sharedTurbineMesh.clone();
       wGroup.add(clone);
-      
+
       if (window.turbineAnimations && window.turbineAnimations.length > 0) {
         const mixer = new THREE.AnimationMixer(clone);
         const action = mixer.clipAction(window.turbineAnimations[0]);
@@ -418,17 +421,17 @@ function createFlagsAndEnergy() {
         clone.traverse(c => {
           if (c.name.toLowerCase().match(/rotor|blade|spin|propeller/)) rotor = c;
         });
-        if (rotor) energyObjects.push({ type: 'wind', rotor, speed: 0.8 + Math.random()*0.4 });
+        if (rotor) energyObjects.push({ type: 'wind', rotor, speed: 0.8 + Math.random() * 0.4 });
       }
     };
-    
+
     if (window.sharedTurbineMesh) setupTurbine();
     else window.pendingTurbines.push(setupTurbine);
-    
+
     wGroup.userData = {
       isClickable: true, objType: 'energy',
       data: {
-        icon: '🌬️', name: `Tuabin Gió ${wz < -100 ? 'Biển' : 'Bờ'} T${i+1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
+        icon: '🌬️', name: `Tuabin Gió ${wz < -100 ? 'Biển' : 'Bờ'} T${i + 1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
         details: { 'Công suất': '2.5 MW', 'Tốc độ gió': '6.2 m/s', 'Trạng thái': 'Đang hoạt động', 'Hiệu suất': '92%' }
       }
     };
@@ -438,8 +441,8 @@ function createFlagsAndEnergy() {
   const spMat = new THREE.MeshStandardMaterial({ color: 0x051030, roughness: 0.1, metalness: 0.8 });
   [[-140, 148], [140, 148]].forEach(([x, z], wIdx) => {
     const sGroup = new THREE.Group(); sGroup.position.set(x, 21.5, z);
-    for(let px=-35; px<=35; px+=15) {
-      for(let pz=-10; pz<=10; pz+=10) {
+    for (let px = -35; px <= 35; px += 15) {
+      for (let pz = -10; pz <= 10; pz += 10) {
         const p = bx(sGroup, 12, 0.4, 8, spMat, px, 0, pz);
         p.rotation.x = Math.PI / 12; // tilt towards sun
       }
@@ -447,7 +450,7 @@ function createFlagsAndEnergy() {
     sGroup.userData = {
       isClickable: true, objType: 'energy',
       data: {
-        icon: '☀️', name: `Hệ Thống Pin Mặt Trời Kho ${wIdx+1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
+        icon: '☀️', name: `Hệ Thống Pin Mặt Trời Kho ${wIdx + 1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
         details: { 'Sản lượng hôm nay': '420 kWh', 'Nhiệt độ panel': '45°C', 'Trạng thái': 'Thu điện' }
       }
     };
@@ -480,19 +483,19 @@ function animate() {
     activeFollowTarget.getWorldPosition(objPos);
     // Cộng thêm offset để điểm focus luôn nằm giữa tâm vật thể
     const targetPos = objPos.add(window.followTargetOffset || new THREE.Vector3());
-    
+
     if (isFollowing) {
-       orbit.target.lerp(targetPos, 0.08);
-       const desiredCamPos = targetPos.clone().add(followCamOffset);
-       camera.position.lerp(desiredCamPos, 0.08);
-       
-       if (orbit.target.distanceTo(targetPos) < 1.0) {
-          isFollowing = false;
-       }
+      orbit.target.lerp(targetPos, 0.08);
+      const desiredCamPos = targetPos.clone().add(followCamOffset);
+      camera.position.lerp(desiredCamPos, 0.08);
+
+      if (orbit.target.distanceTo(targetPos) < 1.0) {
+        isFollowing = false;
+      }
     } else {
-       const delta = targetPos.clone().sub(orbit.target);
-       orbit.target.copy(targetPos);
-       camera.position.add(delta);
+      const delta = targetPos.clone().sub(orbit.target);
+      orbit.target.copy(targetPos);
+      camera.position.add(delta);
     }
   }
 
@@ -605,7 +608,7 @@ function animate() {
   }
 
   updateOverlays(aisEls);
-  
+
   windMixers.forEach(m => m.update(dt));
   energyObjects.forEach(eo => {
     if (eo.type === 'wind' && eo.rotor) eo.rotor.rotation.z += dt * eo.speed;
