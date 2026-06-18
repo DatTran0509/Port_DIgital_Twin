@@ -75,10 +75,10 @@ window.addEventListener('pointerdown', (event) => {
       const size = new THREE.Vector3(); box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
       
-      let dist = maxDim * 1.5; 
-      if (clickedData.objType === 'ship') dist = maxDim * 1.2;
-      else if (clickedData.objType === 'uav') dist = maxDim * 3.5;
-      if (dist < 15) dist = 15; 
+      let dist = maxDim * 5; 
+      if (clickedData.objType === 'ship') dist = maxDim * 2.2;
+      else if (clickedData.objType === 'uav') dist = maxDim * 6.0;
+      if (dist < 25) dist = 25; 
       
       followCamOffset.copy(dir.multiplyScalar(dist));
       
