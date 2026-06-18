@@ -12,7 +12,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
 export const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x8ba5b3, 2000, 18000); // Complete obscuration at the horizon
+scene.fog = new THREE.Fog(0x1a2639, 2000, 18000); // Complete obscuration at the horizon with Evening Sky color
 
 export const camera = new THREE.PerspectiveCamera(44, innerWidth / innerHeight, 5, 20000);
 camera.position.set(150, 80, 280);
@@ -21,7 +21,7 @@ export const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 5, 22); orbit.enableDamping = true; orbit.dampingFactor = .06;
 orbit.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 orbit.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
-orbit.minDistance = 18; orbit.maxDistance = 50000; orbit.maxPolarAngle = Math.PI * 0.44; orbit.update();
+orbit.minDistance = 18; orbit.maxDistance = 50000; orbit.maxPolarAngle = Math.PI; orbit.update();
 
 window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
@@ -51,7 +51,7 @@ export const ambLight = new THREE.AmbientLight(0x10223a, 1.0); scene.add(ambLigh
 export const hemiLight = new THREE.HemisphereLight(0x1a3460, 0x050d1a, 0.75); scene.add(hemiLight);
 export const sun = new THREE.DirectionalLight(0xa8c8e0, 2.0);
 sun.position.set(155, 212, 176); sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096); // High res shadows to stop shimmering/stuttering
+sun.shadow.mapSize.set(2048, 2048); // Reverted to 2048 to save VRAM on 8GB machines
 ['left', 'bottom'].forEach(k => sun.shadow.camera[k] = -450);
 ['right', 'top'].forEach(k => sun.shadow.camera[k] = 450);
 sun.shadow.camera.far = 1000; 

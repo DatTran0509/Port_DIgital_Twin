@@ -24,50 +24,55 @@ for (let i = 0; i < 6; i++) {
   berthMats.push(new THREE.MeshBasicMaterial({ map: tex }));
 }
 
+let sharedShipMesh = null;
+const pendingShipGroups = [];
+
+new GLTFLoader().load('assets/container_ship.glb', (gltf) => {
+  const mesh = gltf.scene;
+  const box = new THREE.Box3().setFromObject(mesh);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  if (size.z > size.x) mesh.rotation.y = Math.PI / 2;
+  
+  mesh.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(mesh);
+  const size2 = new THREE.Vector3();
+  box2.getSize(size2);
+  
+  const scale = 62 / size2.x;
+  mesh.scale.setScalar(scale);
+  
+  mesh.updateMatrixWorld(true);
+  const box3 = new THREE.Box3().setFromObject(mesh);
+  const center = new THREE.Vector3();
+  box3.getCenter(center);
+  
+  mesh.position.x -= center.x;
+  mesh.position.z -= center.z;
+  mesh.position.y -= box3.min.y;
+  mesh.position.y -= 8.5; // Submerge
+  
+  mesh.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  sharedShipMesh = mesh;
+  pendingShipGroups.forEach(g => g.add(sharedShipMesh.clone()));
+  pendingShipGroups.length = 0;
+});
+
 function loadVesselGLB() {
   const g = new THREE.Group();
-  
-  new GLTFLoader().load('assets/container_ship.glb', (gltf) => {
-    const mesh = gltf.scene;
-    
-    const box = new THREE.Box3().setFromObject(mesh);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    
-    if (size.z > size.x) {
-       mesh.rotation.y = Math.PI / 2;
-    }
-    
-    mesh.updateMatrixWorld(true);
-    const box2 = new THREE.Box3().setFromObject(mesh);
-    const size2 = new THREE.Vector3();
-    box2.getSize(size2);
-    
-    const scale = 62 / size2.x;
-    mesh.scale.setScalar(scale);
-    
-    mesh.updateMatrixWorld(true);
-    const box3 = new THREE.Box3().setFromObject(mesh);
-    const center = new THREE.Vector3();
-    box3.getCenter(center);
-    
-    mesh.position.x -= center.x;
-    mesh.position.z -= center.z;
-    mesh.position.y -= box3.min.y;
-    mesh.position.y -= 8.5; // Submerge the ship deeper to touch water
-    
-    mesh.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-
-    g.add(mesh);
-  });
-  
   g.scale.setScalar(0.7);
   scene.add(g);
+  if (sharedShipMesh) {
+    g.add(sharedShipMesh.clone());
+  } else {
+    pendingShipGroups.push(g);
+  }
   return g;
 }
 

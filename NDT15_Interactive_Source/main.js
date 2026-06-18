@@ -24,19 +24,11 @@ const lerp = (a, b, t) => a + (b - a) * t;
 function initEnvironment() {
   const loader = new EXRLoader();
   loader.setDataType(THREE.FloatType);
-  scene.userData.skyDay = null;
-  scene.userData.skyNight = null;
-
-  loader.load('assets/HdrSkyMorning004_HDR_8K.exr', function(texture) {
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.userData.skyDay = texture;
-    scene.background = texture;
-    scene.environment = texture;
-  });
 
   loader.load('assets/HdrSkyEvening006_HDR_8K.exr', function(texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.userData.skyNight = texture;
+    scene.background = texture;
+    scene.environment = texture;
   });
 }
 
