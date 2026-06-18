@@ -32,7 +32,7 @@ export const mat = (c, r = .85, m = .05, e = 0, ei = 0) => {
   if (e) { mt.emissive = new THREE.Color(e); mt.emissiveIntensity = ei; } return mt;
 };
 export const M = {
-  seabed: mat(0x030810, .5), quay: mat(0x4a5563, .88, .06), apron: mat(0x424f5e, .9),
+  seabed: mat(0x030810, 1), quay: mat(0x4a5563, .88, .06), apron: mat(0x424f5e, .9),
   berth: mat(0x384555, .92), yard: mat(0x4b5868, .9), road: mat(0x3b4756, .9),
   mark: mat(0xffd070, .5, .2, 0xffd070, .18), crane: mat(0x1a3050, .35, .82),
   craneY: mat(0xd08018, .4, .55, 0x804000, .12), ship1: mat(0x162538, .7, .25),
@@ -46,9 +46,9 @@ export const M = {
 export const cMats = [M.cE, M.cW, M.cL, M.cR];
 
 /* ── LIGHTS ───────────────────────────────────────── */
-export const ambLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambLight);
-export const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6); scene.add(hemiLight);
-export const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+export const ambLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambLight);
+export const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4); scene.add(hemiLight);
+export const sun = new THREE.DirectionalLight(0xffffff, 1.8);
 sun.position.set(100, 250, 300); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048); // Reverted to 2048 to save VRAM on 8GB machines
 ['left', 'bottom'].forEach(k => sun.shadow.camera[k] = -450);
@@ -59,7 +59,7 @@ sun.shadow.normalBias = 0.05;
 scene.add(sun);
 
 // Đèn gắn liền với camera để bù sáng góc khuất
-export const camLight = new THREE.DirectionalLight(0xffffff, 1.5);
+export const camLight = new THREE.DirectionalLight(0xffffff, 1.0);
 camera.add(camLight);
 scene.add(camera);
 

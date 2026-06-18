@@ -12,14 +12,13 @@ export const longCranes = [];
 
 const berthCanvases = [];
 const berthTexs = [];
-const berthMats = [];
+export const berthMats = [];
 for (let i = 0; i < 6; i++) {
   const cvs = document.createElement('canvas');
   cvs.width = 1440; cvs.height = 200;
   berthCanvases.push(cvs);
   const tex = new THREE.CanvasTexture(cvs);
   tex.anisotropy = 16;
-  tex.minFilter = THREE.LinearFilter;
   berthTexs.push(tex);
   berthMats.push(new THREE.MeshBasicMaterial({ map: tex }));
 }
@@ -77,6 +76,7 @@ new GLTFLoader().load('assets/container_ship.glb', (gltf) => {
 function loadVesselGLB() {
   const g = new THREE.Group();
   g.scale.setScalar(0.7);
+  g.userData = { isClickable: true, objType: 'ship' };
   scene.add(g);
   if (sharedShipMesh) {
     const clone = sharedShipMesh.clone();
@@ -103,17 +103,32 @@ export function initShips(coLayer0) {
     [-35, 0, 35].forEach(ox => bx(scene, .8, 2.5, .8, M.crane, bxv + ox, 5, -5.5));
   });
 
+  function generateShipData(nm, action) {
+    const ports = ['Thượng Hải', 'Singapore', 'Rotterdam', 'Los Angeles', 'Hamburg', 'Dubai'];
+    return {
+      icon: '🚢', name: nm, subtitle: 'TÀU CONTAINER',
+      details: {
+        'Số IMO': 'IMO ' + Math.floor(1000000 + Math.random() * 8999999),
+        'Năm SX': 2010 + Math.floor(Math.random() * 12),
+        'Cảng đi': ports[Math.floor(Math.random() * ports.length)],
+        'Cảng đến': ports[Math.floor(Math.random() * ports.length)],
+        'Loại hàng': action === 'import' ? 'Điện tử, Tiêu dùng' : 'Nông sản, Dệt may'
+      }
+    };
+  }
+
   vessels.push(
-    { g: loadVesselGLB(), mode: 'cycle', bx: -90, t0: 0, dur: 110, cz: -120, nm: 'MSC ARIA', action: 'import' },
-    { g: loadVesselGLB(), mode: 'cycle', bx: 30, t0: 36, dur: 110, cz: -200, nm: 'EVER LINK', action: 'export' },
-    { g: loadVesselGLB(), mode: 'cycle', bx: 150, t0: 73, dur: 110, cz: -280, nm: 'MAERSK ALFA', action: 'import' },
-    { g: loadVesselGLB(), mode: 'dock', bx: -30, nm: 'OCEAN KING', action: 'export' },
-    { g: loadVesselGLB(), mode: 'queue', qx: 80, qz: -300, nm: 'OOCL STAR', action: 'import' },
-    { g: loadVesselGLB(), mode: 'queue', qx: 250, qz: -350, nm: 'MAERSK LINE', action: 'export' },
-    { g: loadVesselGLB(), mode: 'queue', qx: -200, qz: -280, nm: 'COSCO SHIPPING', action: 'import' }
+    { g: loadVesselGLB(), mode: 'cycle', bx: -90, t0: 0, dur: 110, cz: -120, nm: 'MSC ARIA', action: 'import', data: generateShipData('MSC ARIA', 'import') },
+    { g: loadVesselGLB(), mode: 'cycle', bx: 30, t0: 36, dur: 110, cz: -200, nm: 'EVER LINK', action: 'export', data: generateShipData('EVER LINK', 'export') },
+    { g: loadVesselGLB(), mode: 'cycle', bx: 150, t0: 73, dur: 110, cz: -280, nm: 'MAERSK ALFA', action: 'import', data: generateShipData('MAERSK ALFA', 'import') },
+    { g: loadVesselGLB(), mode: 'dock', bx: -30, nm: 'OCEAN KING', action: 'export', data: generateShipData('OCEAN KING', 'export') },
+    { g: loadVesselGLB(), mode: 'queue', qx: 80, qz: -300, nm: 'OOCL STAR', action: 'import', data: generateShipData('OOCL STAR', 'import') },
+    { g: loadVesselGLB(), mode: 'queue', qx: 250, qz: -350, nm: 'MAERSK LINE', action: 'export', data: generateShipData('MAERSK LINE', 'export') },
+    { g: loadVesselGLB(), mode: 'queue', qx: -200, qz: -280, nm: 'COSCO SHIPPING', action: 'import', data: generateShipData('COSCO SHIPPING', 'import') }
   );
 
   vessels.forEach((v, i) => {
+    v.g.userData.data = v.data; // Bind mock data to group userData
     const el = document.createElement('div'); el.className = 'ais'; el.dataset.tr = 'translate(-50%, -180%)';
     el.innerHTML = `<span class="adot"></span><b>${v.nm}</b><span class="ast"></span>`; coLayer0.appendChild(el);
     aisEls.push(el);
@@ -177,15 +192,28 @@ export function updateBerthScreens(el) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
     if (v) {
-      ctx.fillStyle = '#2ADA9A'; ctx.font = 'bold 80px Arial';
-      ctx.fillText(v.nm, 720, 60);
-      ctx.fillStyle = '#FF5468'; ctx.font = 'bold 55px Arial'; // Red for Busy
-      ctx.fillText(v.action === 'import' ? 'ĐANG DỠ HÀNG' : 'ĐANG NHẬN HÀNG', 720, 140);
+      if (!v.vid) v.vid = 'IMO ' + Math.floor(1000000 + Math.random() * 8999999);
+      if (!v.eta) {
+        const d = new Date();
+        d.setHours(d.getHours() + 2 + Math.floor(Math.random() * 5));
+        v.eta = d.getHours().toString().padStart(2, '0') + ':00';
+      }
+      
+      const fStr = '"Segoe UI", Verdana, sans-serif';
+      ctx.fillStyle = '#2ADA9A'; ctx.font = '900 65px ' + fStr;
+      ctx.fillText(v.nm, 720, 50);
+      
+      ctx.fillStyle = '#FF5468'; ctx.font = '900 55px ' + fStr; // Red for Busy
+      ctx.fillText(v.action === 'import' ? 'ĐANG DỠ HÀNG' : 'ĐANG LẤY HÀNG', 720, 115);
+
+      ctx.fillStyle = '#F8B23C'; ctx.font = '900 50px ' + fStr; // Orange for ETA
+      ctx.fillText(`ETA: ${v.eta}`, 720, 175);
     } else {
-      ctx.fillStyle = '#4D8DF6'; ctx.font = 'bold 80px Arial';
+      const fStr = '"Segoe UI", Verdana, sans-serif';
+      ctx.fillStyle = '#4D8DF6'; ctx.font = '900 80px ' + fStr;
       ctx.fillText('BẾN CẢNG ' + (i + 1), 720, 70);
-      ctx.fillStyle = '#15D8A4'; ctx.font = 'bold 60px Arial'; // Green for Ready
-      ctx.fillText('SẴN SÀNG', 720, 140);
+      ctx.fillStyle = '#15D8A4'; ctx.font = '900 60px ' + fStr; // Green for Ready
+      ctx.fillText('SẴN SÀNG', 720, 150);
     }
     berthTexs[i].needsUpdate = true;
   });
@@ -227,12 +255,12 @@ function buildLongCrane(x, idx) {
   // Lights attached to portLights but positioned relative to this crane
   const lg = new THREE.Group();
   lg.position.set(x, 5, -1);
-  const pl1 = new THREE.SpotLight(0xffeeb3, 2000, 200, Math.PI / 4, 0.5, 1.5);
+  const pl1 = new THREE.SpotLight(0xffeeb3, 4000, 200, Math.PI / 4, 0.5, 1.5);
   pl1.position.set(0, 46, -12);
   pl1.target.position.set(0, -5, -30); // Pointing at ship
   lg.add(pl1); lg.add(pl1.target);
 
-  const pl2 = new THREE.SpotLight(0xffeeb3, 2000, 200, Math.PI / 4, 0.5, 1.5);
+  const pl2 = new THREE.SpotLight(0xffeeb3, 4000, 200, Math.PI / 4, 0.5, 1.5);
   pl2.position.set(0, 46, 12);
   pl2.target.position.set(0, -5, 30); // Pointing at yard
   lg.add(pl2); lg.add(pl2.target);

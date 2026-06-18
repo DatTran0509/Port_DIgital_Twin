@@ -64,6 +64,23 @@ function buildTruck(col) {
   const platePrefix = ['51C', '51D', '60C', '61C'][Math.floor(Math.random() * 4)];
   const plate = `${platePrefix}-${plateNum.toString().slice(0,3)}.${plateNum.toString().slice(3)}`;
   
+  const drivers = ['Nguyễn Văn A', 'Trần Thị B', 'Lê Hoàng C', 'Phạm D'];
+  const companies = ['Gemadept Logistics', 'Tân Cảng', 'Vinafco', 'Sotrans'];
+  
+  g.userData = {
+    isClickable: true,
+    objType: 'truck',
+    data: {
+      icon: '🚛', name: `Xe Tải ${plate}`, subtitle: 'PHƯƠNG TIỆN ĐƯỜNG BỘ',
+      details: {
+        'Biển số': plate,
+        'Tài xế': drivers[Math.floor(Math.random() * drivers.length)],
+        'Đơn vị vận tải': companies[Math.floor(Math.random() * companies.length)],
+        'Mức nhiên liệu': Math.floor(30 + Math.random() * 70) + '%'
+      }
+    }
+  };
+
   truckGroup.add(g); return { g, cargo, hl, plate };
 }
 

@@ -7,7 +7,7 @@ import { initYard, updateRtgCranes, updateBlockScreens } from './yard.js';
 import { initShips, vessels, vesselPose, updateBerthScreens, longCranes, pings, aisEls, berthXs, BERTH_Z } from './ships.js';
 import { initGate, barriers, updateGateScreens } from './gate.js';
 import { initTrucks, updateTrucks } from './trucks.js';
-import { initUI, updateOverlays, isScanActive } from './ui.js';
+import { initUI, updateOverlays, isScanActive, showObjectInfo, hideObjectInfo } from './ui.js';
 
 let water;
 let cityscapeObjs = [];
@@ -19,16 +19,98 @@ let drones = [];
 let emitData = [];
 let emitPos, emitGeo, emitPts;
 let buoyT = 0;
+let energyObjects = [];
+let windMixers = [];
+let activeFollowTarget = null;
+let followCamOffset = new THREE.Vector3();
+let isFollowing = false;
+let globalFlagGeo = null; // Store flag geometry for animation
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+orbit.addEventListener('start', () => { isFollowing = false; });
+
+window.addEventListener('clear-follow-target', () => {
+  activeFollowTarget = null;
+});
+
+window.addEventListener('pointerdown', (event) => {
+  // Only process if it's a direct click on canvas or we're not clicking on UI elements
+  if (event.button !== 0 || event.target.tagName !== 'CANVAS') return;
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+
+  const intersects = raycaster.intersectObjects(scene.children, true);
+  if (intersects.length > 0) {
+    let curr = intersects[0].object;
+    let clickedData = null;
+    let clickedGroup = null;
+    while(curr) {
+      if (curr.userData && curr.userData.isClickable) {
+        clickedData = curr.userData;
+        clickedGroup = curr;
+        break;
+      }
+      curr = curr.parent;
+    }
+    if (clickedData) {
+      activeFollowTarget = clickedGroup;
+      isFollowing = true;
+
+      const targetPos = new THREE.Vector3();
+      activeFollowTarget.getWorldPosition(targetPos);
+      
+      const dir = new THREE.Vector3().subVectors(camera.position, orbit.target).normalize();
+      if(dir.lengthSq() < 0.1) dir.set(0, 0.5, 1).normalize();
+      
+      // Đảm bảo góc nhìn từ trên xuống một chút để bao quát toàn bộ
+      if (dir.y < 0.35) {
+         dir.y = 0.5;
+         dir.normalize();
+      }
+
+      // Tính toán kích thước thật của vật thể (Bounding Box) để quyết định khoảng cách zoom
+      const box = new THREE.Box3().setFromObject(clickedGroup);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      
+      let dist = maxDim * 1.5; 
+      if (clickedData.objType === 'ship') dist = maxDim * 1.2;
+      else if (clickedData.objType === 'uav') dist = maxDim * 3.5;
+      if (dist < 15) dist = 15; 
+      
+      followCamOffset.copy(dir.multiplyScalar(dist));
+      
+      // Tính tâm Bounding Box để focus chính giữa vật thể thay vì origin (dưới sàn)
+      const objOrigin = new THREE.Vector3();
+      clickedGroup.getWorldPosition(objOrigin);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      window.followTargetOffset = center.clone().sub(objOrigin);
+      
+      showObjectInfo(clickedData.data, clickedData.objType);
+    } else {
+      activeFollowTarget = null;
+      hideObjectInfo();
+    }
+  } else {
+    activeFollowTarget = null;
+    hideObjectInfo();
+  }
+});
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function initEnvironment() {
   const loader = new EXRLoader();
   loader.setDataType(THREE.HalfFloatType);
 
-  loader.load('assets/HdrSkyMorning004_HDR_8K.exr', function (texture) {
+  loader.load('assets/kloofendal_48d_partly_cloudy_puresky_1k.exr', function (texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     scene.environment = texture;
+    if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 1.0;
+    if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 1.0;
   });
 }
 
@@ -44,9 +126,10 @@ function createOceanZone() {
       }),
       sunDirection: sun.position.clone().normalize(),
       sunColor: 0xffffff,
-      waterColor: 0x002c5c,
+      waterColor: 0x00103a, // Xanh biển đậm hơn
       distortionScale: 3.7,
-      fog: scene.fog !== undefined
+      fog: scene.fog !== undefined,
+      alpha: 0.85
     }
   );
   water.rotation.x = -Math.PI / 2;
@@ -105,6 +188,34 @@ function loadModels() {
       }
     });
     scene.add(city);
+  });
+  
+  // Preload Wind Turbine
+  new GLTFLoader().load('assets/wind_turbine.glb', (gltf) => {
+    const mesh = gltf.scene;
+    // Normalize size
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const scale = 50 / size.y; // Target height ~50
+    mesh.scale.setScalar(scale);
+    
+    mesh.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(mesh);
+    const center = new THREE.Vector3(); box2.getCenter(center);
+    mesh.position.x -= center.x;
+    mesh.position.z -= center.z;
+    mesh.position.y -= box2.min.y;
+    
+    mesh.traverse(c => {
+      if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
+    });
+    
+    window.sharedTurbineMesh = mesh;
+    window.turbineAnimations = gltf.animations;
+    if (window.pendingTurbines) {
+      window.pendingTurbines.forEach(t => t());
+      window.pendingTurbines = [];
+    }
   });
 }
 
@@ -183,8 +294,22 @@ function setupCoreScene() {
     cone.position.set(0, -5, 0); g.add(cone);
     scene.add(g); return { g, arms, belly, cone };
   }
-  [{ c: 0xFF5468, r: 150, h: 41, s: .32, p: 0 }, { c: 0x34E0F0, r: 120, h: 35, s: .42, p: Math.PI }, { c: 0xF8B23C, r: 180, h: 49, s: .24, p: Math.PI / 2 }]
-    .forEach(d => drones.push({ ...buildDrone(d.c), r: d.r, h: d.h, spd: d.s, ph: d.p }));
+  [{ c: 0xFF5468, r: 150, h: 41, s: .32, p: 0, task: 'Giám sát khu bến', id: 'UAV-01' }, { c: 0x34E0F0, r: 120, h: 35, s: .42, p: Math.PI, task: 'Quét vùng biển', id: 'UAV-02' }, { c: 0xF8B23C, r: 180, h: 49, s: .24, p: Math.PI / 2, task: 'Kiểm tra an ninh', id: 'UAV-03' }]
+    .forEach(d => {
+      const droneObj = buildDrone(d.c);
+      droneObj.g.userData = {
+        isClickable: true, objType: 'uav',
+        data: {
+          icon: '🚁', name: d.id, subtitle: 'DRONE GIÁM SÁT',
+          details: {
+            'Nhiệm vụ': d.task, 'Độ cao': d.h + ' m',
+            'Pin': Math.floor(60 + Math.random() * 40) + '%',
+            'Tốc độ': Math.floor(d.s * 100) + ' km/h'
+          }
+        }
+      };
+      drones.push({ ...droneObj, r: d.r, h: d.h, spd: d.s, ph: d.p });
+    });
 
   // CO2 Particles
   const emitSrc = [[-100, 5, -9], [-50, 5, -6], [0, 5, -8], [50, 5, -5], [100, 24, 28], [-150, 17, -4]];
@@ -201,12 +326,139 @@ function setupCoreScene() {
   emitPts = new THREE.Points(emitGeo, new THREE.PointsMaterial({ color: 0x90a4ba, size: 1.3, transparent: true, opacity: .28 })); scene.add(emitPts);
 }
 
+function createFlagsAndEnergy() {
+  // Flags - Canvas Texture for White Fabric + Centered Logo
+  const cvsFront = document.createElement('canvas');
+  cvsFront.width = 1024; cvsFront.height = 682;
+  const ctxF = cvsFront.getContext('2d');
+  ctxF.fillStyle = '#ffffff'; ctxF.fillRect(0, 0, cvsFront.width, cvsFront.height);
+  
+  const cvsBack = document.createElement('canvas');
+  cvsBack.width = 1024; cvsBack.height = 682;
+  const ctxB = cvsBack.getContext('2d');
+  ctxB.fillStyle = '#ffffff'; ctxB.fillRect(0, 0, cvsBack.width, cvsBack.height);
+  
+  const texF = new THREE.CanvasTexture(cvsFront); texF.colorSpace = THREE.SRGBColorSpace; texF.anisotropy = 16;
+  const texB = new THREE.CanvasTexture(cvsBack); texB.colorSpace = THREE.SRGBColorSpace; texB.anisotropy = 16;
+  
+  const img = new Image();
+  img.src = 'assets/logo_ndt.png';
+  img.onload = () => {
+    const lw = cvsFront.width * 0.65;
+    const lh = (img.height / img.width) * lw;
+    // Front
+    ctxF.drawImage(img, (cvsFront.width - lw)/2, (cvsFront.height - lh)/2, lw, lh);
+    texF.needsUpdate = true;
+    
+    // Back (flipped horizontally)
+    ctxB.translate(cvsBack.width, 0);
+    ctxB.scale(-1, 1);
+    ctxB.drawImage(img, (cvsBack.width - lw)/2, (cvsBack.height - lh)/2, lw, lh);
+    texB.needsUpdate = true;
+  };
+  
+  globalFlagGeo = new THREE.PlaneGeometry(6, 4, 25, 12);
+  globalFlagGeo.translate(3, 0, 0); // Move origin to left edge
+  const fpos = globalFlagGeo.attributes.position;
+  globalFlagGeo.userData = { initZ: new Float32Array(fpos.count) };
+  for(let i=0; i<fpos.count; i++) globalFlagGeo.userData.initZ[i] = fpos.getZ(i);
+
+  const matF = new THREE.MeshStandardMaterial({ map: texF, side: THREE.FrontSide, roughness: 0.9, metalness: 0.0 });
+  const matB = new THREE.MeshStandardMaterial({ map: texB, side: THREE.BackSide, roughness: 0.9, metalness: 0.0 });
+
+  // 3 vị trí: 2 đầu cảng và 1 trước cổng (hướng ra ngoài)
+  // [x, z, rotationY]
+  const flagPlacements = [
+    [-280, -5, 0],             // Đầu càng trái
+    [280, -5, Math.PI],        // Đầu càng phải
+    [55, 140, 0]               // Cạnh phải đường vào, bay về bên phải
+  ];
+
+  flagPlacements.forEach(([fx, fz, ry]) => {
+    cy(scene, 0.2, 20, mat(0x8899aa, 0.5, 0.9), fx, 0, fz); // Metal pole
+    const fmFront = new THREE.Mesh(globalFlagGeo, matF);
+    const fmBack = new THREE.Mesh(globalFlagGeo, matB);
+    fmFront.castShadow = true; fmFront.receiveShadow = true;
+    fmBack.castShadow = true; fmBack.receiveShadow = true;
+    
+    const fGroup = new THREE.Group();
+    fGroup.add(fmFront); fGroup.add(fmBack);
+    fGroup.position.set(fx, 18, fz);
+    fGroup.rotation.y = ry;
+    scene.add(fGroup);
+  });
+
+  // Wind Turbines scattered around
+  const wtPos = [
+    [260, 100], [260, 0], [260, -100], // Phía bờ phải
+    [-260, 100], [-260, -100],         // Phía bờ trái
+    [150, -450], [-150, -400], [0, -500] // Ngoài biển (Offshore)
+  ];
+  
+  window.pendingTurbines = [];
+  wtPos.forEach(([wx, wz], i) => {
+    const wGroup = new THREE.Group(); wGroup.position.set(wx, wz < -100 ? -2 : 0, wz); // Offshore is slightly lower
+    scene.add(wGroup);
+    
+    const setupTurbine = () => {
+      const clone = window.sharedTurbineMesh.clone();
+      wGroup.add(clone);
+      
+      if (window.turbineAnimations && window.turbineAnimations.length > 0) {
+        const mixer = new THREE.AnimationMixer(clone);
+        const action = mixer.clipAction(window.turbineAnimations[0]);
+        action.play();
+        windMixers.push(mixer);
+      } else {
+        // Try to find a rotor node to spin manually
+        let rotor = null;
+        clone.traverse(c => {
+          if (c.name.toLowerCase().match(/rotor|blade|spin|propeller/)) rotor = c;
+        });
+        if (rotor) energyObjects.push({ type: 'wind', rotor, speed: 0.8 + Math.random()*0.4 });
+      }
+    };
+    
+    if (window.sharedTurbineMesh) setupTurbine();
+    else window.pendingTurbines.push(setupTurbine);
+    
+    wGroup.userData = {
+      isClickable: true, objType: 'energy',
+      data: {
+        icon: '🌬️', name: `Tuabin Gió ${wz < -100 ? 'Biển' : 'Bờ'} T${i+1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
+        details: { 'Công suất': '2.5 MW', 'Tốc độ gió': '6.2 m/s', 'Trạng thái': 'Đang hoạt động', 'Hiệu suất': '92%' }
+      }
+    };
+  });
+
+  // Solar Panels
+  const spMat = new THREE.MeshStandardMaterial({ color: 0x051030, roughness: 0.1, metalness: 0.8 });
+  [[-140, 148], [140, 148]].forEach(([x, z], wIdx) => {
+    const sGroup = new THREE.Group(); sGroup.position.set(x, 21.5, z);
+    for(let px=-35; px<=35; px+=15) {
+      for(let pz=-10; pz<=10; pz+=10) {
+        const p = bx(sGroup, 12, 0.4, 8, spMat, px, 0, pz);
+        p.rotation.x = Math.PI / 12; // tilt towards sun
+      }
+    }
+    sGroup.userData = {
+      isClickable: true, objType: 'energy',
+      data: {
+        icon: '☀️', name: `Hệ Thống Pin Mặt Trời Kho ${wIdx+1}`, subtitle: 'NĂNG LƯỢNG TÁI TẠO',
+        details: { 'Sản lượng hôm nay': '420 kWh', 'Nhiệt độ panel': '45°C', 'Trạng thái': 'Thu điện' }
+      }
+    };
+    scene.add(sGroup);
+  });
+}
+
 // === MAIN EXECUTION ===
 initEnvironment();
 createOceanZone();
 createLandmassZone();
 loadModels();
 setupCoreScene();
+createFlagsAndEnergy();
 
 initYard();
 initGate();
@@ -218,6 +470,29 @@ initUI(orbit, null, null, null, radarG, buoyMeshes, shorePowerGroup, scanPlane);
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05), el = clock.getElapsedTime();
+
+  // Follow target
+  if (activeFollowTarget) {
+    const objPos = new THREE.Vector3();
+    activeFollowTarget.getWorldPosition(objPos);
+    // Cộng thêm offset để điểm focus luôn nằm giữa tâm vật thể
+    const targetPos = objPos.add(window.followTargetOffset || new THREE.Vector3());
+    
+    if (isFollowing) {
+       orbit.target.lerp(targetPos, 0.08);
+       const desiredCamPos = targetPos.clone().add(followCamOffset);
+       camera.position.lerp(desiredCamPos, 0.08);
+       
+       if (orbit.target.distanceTo(targetPos) < 1.0) {
+          isFollowing = false;
+       }
+    } else {
+       const delta = targetPos.clone().sub(orbit.target);
+       orbit.target.copy(targetPos);
+       camera.position.add(delta);
+    }
+  }
+
   orbit.update();
 
   if (water) {
@@ -327,6 +602,27 @@ function animate() {
   }
 
   updateOverlays(aisEls);
+  
+  windMixers.forEach(m => m.update(dt));
+  energyObjects.forEach(eo => {
+    if (eo.type === 'wind' && eo.rotor) eo.rotor.rotation.z += dt * eo.speed;
+  });
+
+  // Flag wind cloth animation
+  if (globalFlagGeo) {
+    const pos = globalFlagGeo.attributes.position;
+    const initZ = globalFlagGeo.userData.initZ;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      // The wave amplitude increases as x goes further right from the pole (x=0)
+      const wave = Math.sin(el * 6 - x * 1.5) * (x / 6) * 0.7;
+      const noise = Math.sin(el * 15 + x * 4) * (x / 6) * 0.15; // fast flutter
+      pos.setZ(i, initZ[i] + wave + noise);
+    }
+    pos.needsUpdate = true;
+    globalFlagGeo.computeVertexNormals();
+  }
+
   renderer.render(scene, camera);
 }
 

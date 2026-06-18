@@ -98,16 +98,17 @@ export function updateBlockScreens() {
     ctx.textAlign = 'center';
     
     const rtg = rtgCranes[i];
+    const fStr = '"Segoe UI", Verdana, sans-serif';
     if (rtg.state > 0 && rtg.tTrk) {
       ctx.fillStyle = rtg.tTrk.isImport ? '#FFD070' : '#2ADA9A';
-      ctx.font = 'bold 50px Arial';
+      ctx.font = '900 65px ' + fStr;
       ctx.fillText(rtg.tTrk.plate, 512, 80);
-      ctx.fillStyle = '#ffffff'; ctx.font = '60px Arial';
+      ctx.fillStyle = '#ffffff'; ctx.font = '900 55px ' + fStr;
       ctx.fillText(rtg.tTrk.isImport ? 'NHẬP TỪ XE TẢI' : 'XUẤT CHO XE TẢI', 512, 160);
     } else {
-      ctx.fillStyle = '#4D8DF6'; ctx.font = 'bold 60px Arial';
+      ctx.fillStyle = '#4D8DF6'; ctx.font = '900 70px ' + fStr;
       ctx.fillText('BÃI SỐ ' + (i+1), 512, 100);
-      ctx.fillStyle = '#223344'; ctx.font = '50px Arial';
+      ctx.fillStyle = '#15D8A4'; ctx.font = '900 55px ' + fStr;
       ctx.fillText('SẴN SÀNG', 512, 180);
     }
     blockTexs[i].needsUpdate = true;

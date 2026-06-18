@@ -8,7 +8,7 @@ screenCanvas.width = 2048; screenCanvas.height = 256;
 const sCtx = screenCanvas.getContext('2d');
 const screenTex = new THREE.CanvasTexture(screenCanvas);
 screenTex.needsUpdate = true;
-const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
+export const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
 
 sCtx.fillStyle = '#050a10';
 sCtx.fillRect(0, 0, 2048, 256);
@@ -62,7 +62,7 @@ export function initGate() {
     bgrp.add(arm);
     
     // Add gate lighting
-    const pl = new THREE.SpotLight(0xfff0c0, 1500, 150, Math.PI / 3, 0.5, 1.5);
+    const pl = new THREE.SpotLight(0xfff0c0, 2000, 150, Math.PI / 3, 0.5, 1.5);
     pl.position.set(x, 17, 0); // Above the arch
     pl.target.position.set(x, 0, bZ * 1.5); // Pointing at the lane
     const lg = new THREE.Group();
@@ -85,34 +85,35 @@ export function updateGateScreens() {
     const ox = b.screenIdx * 512;
     sCtx.textAlign = 'center';
     
+    const fStr = '"Segoe UI", Verdana, sans-serif';
     if (b.status === 0) {
       sCtx.fillStyle = '#4D8DF6';
-      sCtx.font = 'bold 45px Arial';
+      sCtx.font = '900 55px ' + fStr;
       sCtx.fillText('AUTO GATE', ox + 256, 100);
-      sCtx.fillStyle = '#223344';
-      sCtx.font = '35px Arial';
-      sCtx.fillText('READY', ox + 256, 170);
+      sCtx.fillStyle = '#15D8A4';
+      sCtx.font = '900 45px ' + fStr;
+      sCtx.fillText('SẴN SÀNG', ox + 256, 170);
       if (b.armMat) b.armMat.emissive.setHex(0x4D8DF6);
     } else if (b.status === 1) {
       sCtx.fillStyle = '#2ADA9A';
-      sCtx.font = 'bold 60px Arial';
+      sCtx.font = '900 65px ' + fStr;
       sCtx.fillText(b.plate || '51C-888.88', ox + 256, 90);
       sCtx.fillStyle = '#ffffff';
-      sCtx.font = 'bold 45px Arial';
+      sCtx.font = '900 50px ' + fStr;
       sCtx.fillText('HỢP LỆ', ox + 256, 160);
       sCtx.fillStyle = '#2ADA9A';
-      sCtx.font = '35px Arial';
+      sCtx.font = '900 40px ' + fStr;
       sCtx.fillText('▼ ĐI TIẾP', ox + 256, 215);
       if (b.armMat) b.armMat.emissive.setHex(0x2ADA9A);
     } else if (b.status === -1) {
       sCtx.fillStyle = '#FF5468';
-      sCtx.font = 'bold 60px Arial';
+      sCtx.font = '900 65px ' + fStr;
       sCtx.fillText(b.plate || 'UNK-000.00', ox + 256, 90);
       sCtx.fillStyle = '#FF5468';
-      sCtx.font = 'bold 45px Arial';
+      sCtx.font = '900 50px ' + fStr;
       sCtx.fillText('KHÔNG HỢP LỆ', ox + 256, 160);
       sCtx.fillStyle = '#ffaa00';
-      sCtx.font = '35px Arial';
+      sCtx.font = '900 40px ' + fStr;
       sCtx.fillText('↶ QUAY ĐẦU', ox + 256, 215);
       if (b.armMat) b.armMat.emissive.setHex(0xFF5468);
     }
