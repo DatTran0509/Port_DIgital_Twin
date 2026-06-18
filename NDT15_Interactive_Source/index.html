@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NDT 15 · Smart Port 3D Interactive</title>
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="features.js"></script>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="topbar">
+    <div class="logo-wrap"><img src="assets/0b621447-f7f5-40d9-8100-7ac4d29cb50e.png" alt="NDT 15"></div>
+    <div class="top-title">NDT 15 · Smart Port — Interactive 3D</div>
+    <div class="top-hint">drag to orbit &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click feature to explore</div>
+    <div style="display: flex; gap: 8px; margin-left: 18px;">
+      <button id="dn-toggle" class="top-btn">☀ Day Mode</button>
+      <button id="ui-toggle" class="top-btn">👁 Hide UI</button>
+    </div>
+  </div>
+  <div id="hslayer"></div>
+  <div id="colayer"></div>
+  <div id="panel">
+    <button id="pcls">✕</button>
+    <div class="pnum" id="pnum"></div>
+    <div class="ptitle" id="ptitle"></div>
+    <div class="psub" id="psub"></div>
+
+    <details class="p-details" id="pdetails" style="display:none;">
+      <summary>Xem Vấn đề & Cơ chế hoạt động (Overview)</summary>
+      <div class="p-box pain" id="ppain-box">
+        <div class="p-box-title">⚠ Vấn đề thực tế (Pain Points)</div>
+        <div class="p-box-content" id="ppain"></div>
+      </div>
+      <div class="p-box mech" id="pmech-box">
+        <div class="p-box-title">⚙ Cơ chế hoạt động (Mechanism)</div>
+        <div class="p-box-content" id="pmech"></div>
+      </div>
+    </details>
+
+    <div class="ptag" id="ptag"></div>
+  <div class="pmets" id="pmets"></div>
+  <div class="shd-row">
+    <div class="shd">Luồng Vận Hành</div>
+    <button id="btn-autoplay" class="btn-tiny">▶ Tự động chạy</button>
+  </div>
+  <div id="psteps"></div>
+</div>
+  <div id="left-sidebar">
+    <h3 id="ls-title">Bảng Thống Kê</h3>
+    <div class="chart-box" id="pchart-wrapper" style="display:none;"><canvas id="pchart"></canvas></div>
+    <div class="chart-box" id="pchart2-wrapper" style="display:none;"><canvas id="pchart2"></canvas></div>
+    <div class="chart-box" id="pchart3-wrapper" style="display:none;"><canvas id="pchart3"></canvas></div>
+  </div>
+  <nav id="fnav"></nav>
+  <div id="chint">🖱 Xoay &nbsp; ⟳ Phóng to &nbsp; ⊙ Chọn</div>
+
+  <script type="module" src="main.js"></script>
+
+
+
+</body>
+
+</html>
