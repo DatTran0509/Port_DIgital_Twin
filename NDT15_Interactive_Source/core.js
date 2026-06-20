@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { apronBounds, gatePosition, PARAMS } from './layout.js';
 /* ── RENDERER & SCENE ─────────────────────────────── */
 export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
@@ -50,9 +51,54 @@ export const ambLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambLigh
 export const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4); scene.add(hemiLight);
 export const sun = new THREE.DirectionalLight(0xffffff, 1.8);
 sun.position.set(100, 250, 300); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048); // Reverted to 2048 to save VRAM on 8GB machines
-['left', 'bottom'].forEach(k => sun.shadow.camera[k] = -450);
-['right', 'top'].forEach(k => sun.shadow.camera[k] = 450);
+
+/* ── DIRECTIONAL SHADOW FRUSTUM SIZING (Req 9.2, 9.7) ──────────────────────
+ * Shadow sharpness for a directional light = mapSize / frustumWidth (texels per
+ * world unit). The expanded yard is far larger than the old ±450 frustum was
+ * tuned for, so we (a) tighten the ortho frustum to TIGHTLY bound the lit yard
+ * (apron + gate + waterfront, NOT the distant ocean/turbines) and (b) pick the
+ * smallest power-of-two mapSize that keeps texel density ≥ the pre-expansion
+ * baseline, capped at 4096 to respect the 8GB-VRAM budget (Req 9.2).
+ *
+ * Pre-expansion baseline (BASELINE): mapSize 2048 over a 900-unit-wide frustum
+ *   → 2048 / 900 ≈ 2.276 texels/unit. This is the density we must preserve.
+ *
+ * The light target stays at the origin (unchanged), so the lit direction — and
+ * therefore the scene's shading — is identical to before; only the shadow map
+ * coverage/resolution changes. With the target at the origin the ortho frustum
+ * is symmetric, so its half-extent H must reach the farthest lit edge from 0 on
+ * either axis. The extents are derived from layout.apronBounds()/gatePosition()
+ * (Req 10.4) rather than hand-tuned magic numbers.
+ */
+const SHADOW_BASELINE_DENSITY = 2048 / 900; // ≈ 2.276 texels/unit (pre-expansion)
+const SHADOW_MAP_CAP = 4096;                // hard cap on mapSize (Req 9.2)
+const SHADOW_MARGIN = 12;                   // small clearance beyond the lit yard
+{
+  const ap = apronBounds();
+  const gate = gatePosition();
+  // Region the shadow map must cover: the apron rectangle, extended landward to
+  // include the gate (+z) and seaward to the berth line (−z).
+  const regionMinX = ap.minX, regionMaxX = ap.maxX;
+  const regionMinZ = Math.min(ap.minZ, PARAMS.BERTH_Z); // down to the waterfront
+  const regionMaxZ = Math.max(ap.maxZ, gate.z);         // out to the gate
+  // Origin-centered symmetric half-extent: farthest edge from 0 on either axis.
+  const H = Math.max(
+    Math.abs(regionMinX), Math.abs(regionMaxX),
+    Math.abs(regionMinZ), Math.abs(regionMaxZ)
+  ) + SHADOW_MARGIN; // defaults → max(158,158,22,309)+12 = 321 (frustum width 642)
+
+  // Smallest power-of-two mapSize that preserves density ≥ baseline, capped.
+  const minMapSize = SHADOW_BASELINE_DENSITY * 2 * H;            // ≈ 1461 by default
+  const mapSize = Math.min(SHADOW_MAP_CAP, Math.pow(2, Math.ceil(Math.log2(minMapSize)))); // → 2048
+  // Resulting density = mapSize / (2H) ≈ 2048 / 642 ≈ 3.19 texels/unit (≥ 2.276 baseline).
+
+  sun.shadow.mapSize.set(mapSize, mapSize);
+  ['left', 'bottom'].forEach(k => sun.shadow.camera[k] = -H);
+  ['right', 'top'].forEach(k => sun.shadow.camera[k] = H);
+  sun.shadow.camera.updateProjectionMatrix();
+}
+// far reaches across the whole frustum from the sun at (100,250,300) (~403 units
+// from the target) down to the ground; near stays at the default. Includes ground.
 sun.shadow.camera.far = 1000;
 sun.shadow.bias = -0.0001;
 sun.shadow.normalBias = 0.05;

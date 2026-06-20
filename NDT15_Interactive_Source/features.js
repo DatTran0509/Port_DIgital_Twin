@@ -2,7 +2,6 @@ window.PC = ['', '#15D8A4', '#F8B23C', '#B07CFF'];
 window.FEATS = [
   {
     id: '01', name: 'Điều Phối Bến Thông Minh', short: 'BẾN', color: '#34E0F0', phase: 1, core: true,
-    cp: [-60, 15, -15], fp: [-150, 45, -150], ft: [-60, 10, 60],
     desc: 'Điều phối tàu tức thì & tối ưu cập bến dựa trên dữ liệu AIS real-time.',
     painPoints: 'Tắc nghẽn tại luồng lạch phao số 0 diễn ra thường xuyên do thiếu đồng bộ dữ liệu. Các hãng tàu chịu phí phạt neo chờ từ $30,000–$50,000/ngày/tàu. Điều phối thủ công gây sai số ETA trung bình 45–90 phút, tạo chuỗi trễ dây chuyền.',
     mechanism: 'Hệ thống tự động quét dữ liệu định vị AIS từ xa, đối chiếu trạng thái khai thác bến real-time qua bản đồ GIS, tự động phát lệnh điều tốc tàu (Just-in-Time). AI tính toán để tàu không phải neo chờ.',
@@ -19,7 +18,6 @@ window.FEATS = [
   },
   {
     id: '02', name: 'Bãi Container Số 3D', short: 'BÃI', color: '#27C281', phase: 1, core: true,
-    cp: [60, 25, 50], fp: [90, 60, 110], ft: [0, 5, 20],
     desc: 'Số hóa bãi container & tối ưu xếp chồng.',
     painPoints: 'Tỷ lệ đảo chuyển container rỗng vô ích chiếm tới 20% chi phí bãi do quy hoạch thủ công. Không có tầm nhìn tổng thể dẫn đến container bị chôn vùi không lấy được đúng lúc.',
     mechanism: 'Lớp BIM phối hợp GIS & MMIS dựng mô hình số bãi 1:1. AI quét lịch trình tàu để tự xếp container: đi trước lên trên, đi sau xuống dưới. Triệt tiêu hoàn toàn đảo chuyển vô ích.',
@@ -36,7 +34,6 @@ window.FEATS = [
   },
   {
     id: '03', name: 'Hệ Thống Cổng Tự Động', short: 'CỔNG', color: '#4D8DF6', phase: 1, core: true,
-    cp: [25, 25, 85], fp: [25, 40, 200], ft: [10, 5, 120],
     desc: 'Tự động hóa cổng cảng & điều tiết giao thông.',
     painPoints: 'Gate Chaos – kẹt xe đầu kéo nhiều km tại cổng cảng vào giờ cao điểm. Quy trình thông quan thủ công tốn 30 phút, gây thiệt hại dây chuyền cho logistics.',
     mechanism: 'Lớp TIS kết hợp CIM thiết lập hệ thống đặt chỗ (Truck Booking Slot). Camera AI quét biển số (ALPR) đối chiếu lệnh điện tử và mở barrier dưới 2 giây. Số hóa 100%.',
@@ -53,7 +50,6 @@ window.FEATS = [
   },
   {
     id: '05', name: 'Lá Chắn An Ninh AI', short: 'AN NINH', color: '#FF5468', phase: 2,
-    cp: [284, 35, 2], fp: [320, 80, -50], ft: [284, 10, 2],
     desc: 'Vành đai an ninh & Drone tuần tra tự động.',
     painPoints: 'Điểm mù an ninh vùng nước cảng rộng lớn trong đêm/sương mù. Chi phí canô tuần tra thủ công đắt, không phủ sóng 360°. Nguy cơ xâm nhập trái phép.',
     mechanism: 'Radar quét sóng mặt nước liên tục phát hiện mục tiêu lạ. Tự động điều Drone UAV cất cánh trong 30s. AI phân tích video camera nhiệt xác định mức độ đe dọa.',
@@ -70,7 +66,6 @@ window.FEATS = [
   },
   {
     id: '08', name: 'Hệ Sinh Thái Cảng Xanh EIS', short: 'MÔI TRƯỜNG', color: '#2ADA9A', phase: 2, core: false,
-    cp: [-140, 5, -80], fp: [-160, 50, -100], ft: [-40, 0, -60],
     desc: 'Quan trắc môi trường & Kiểm toán ESG tự động.',
     painPoints: 'Áp lực thuế carbon IMO nghiêm khắc. Nguy cơ bị hãng tàu tẩy chay nếu không đạt ESG. Cảng thiếu dữ liệu phát thải chính xác và hệ thống báo cáo ESG tự động.',
     mechanism: 'Lớp EIS tích hợp sensor IoT đo real-time CO₂, SOx, NOx từ tàu/thiết bị, đo chất lượng nước biển. Tổng hợp dashboard ESG và xuất báo cáo kiểm toán 1 click.',
@@ -87,7 +82,6 @@ window.FEATS = [
   },
   {
     id: '09', name: 'Tài Chính & Năng Lượng', short: 'NĂNG LƯỢNG', color: '#FF5468', phase: 1, core: true,
-    cp: [-100, 25, 148], fp: [-180, 70, 200], ft: [-120, 10, 140],
     desc: 'Liên kết hoạt động vật lý với dòng tiền, mô phỏng năng lượng tái tạo.',
     painPoints: 'Chi phí năng lượng cao và khó dự báo.',
     mechanism: 'Mô phỏng sản lượng năng lượng tái tạo và tối ưu hóa hóa đơn tiền điện cho cảng.',
@@ -104,7 +98,6 @@ window.FEATS = [
   },
   {
     id: '10', name: 'Tổng Quan Bến Cảng', short: 'TỔNG QUAN', color: '#B07CFF', phase: 3,
-    cp: [0, 34, 20], fp: [220, 140, -180], ft: [0, 0, 0],
     desc: 'Quay về góc nhìn bao quát toàn cảnh bến cảng thông minh.',
     painPoints: '',
     mechanism: '',
