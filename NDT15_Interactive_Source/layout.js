@@ -53,7 +53,7 @@ export const PARAMS = {
   BERTH_SPACING: 60,  // legacy nominal berth spacing (no longer positions berths)
 
   // Gate & apron
-  GATE_GAP: 45,       // gap from the last block row to the gate, in +z
+  GATE_GAP: 90,       // gap from the last block row to the gate, in +z (long entry road)
   APRON_MARGIN: 2,    // clearance (≥ 2) from outermost element edge to apron edge
 };
 
@@ -154,7 +154,7 @@ export function blockToBerth(col, row) {
 }
 
 // Gate position: landward end, in +z beyond the last block row (Req 7.2).
-//   gateZ = blockCenterZ(ROWS-1) + BLOCK_D/2 + GATE_GAP  → 243 + 21 + 45 = 309
+//   gateZ = blockCenterZ(ROWS-1) + BLOCK_D/2 + GATE_GAP  → 243 + 21 + 90 = 354
 export function gatePosition() {
   const { ROWS, BLOCK_D, GATE_GAP } = PARAMS;
   return { x: 0, z: blockCenterZ(ROWS - 1) + BLOCK_D / 2 + GATE_GAP };
@@ -397,20 +397,21 @@ export function roadGraph() {
 
   // ── 2. gate apron nodes — ONE per physical gate lane ──────────────────────
   // Each of the 4 gate lanes (x = ±10 / ±30, mirroring gate/gate.js + dispatch)
-  // gets its OWN node sitting on the back (landward) horizontal road. A truck
-  // drives the gate→apron stub straight (off-graph, centered in its lane), then
-  // routes from this apron node through the grid — turning onto the back road
-  // with a proper 90° turn instead of cutting diagonally. Each apron node links
-  // to its nearest back-row crossing so all four lanes feed the grid.
+  // gets its OWN node on the back (landward) road. To AVOID inbound/outbound
+  // fighting over the same junction, each lane feeds a SEPARATE back-row crossing
+  // — entry lanes to the left crossings, exit lanes to the right — so the gate
+  // funnel spreads across four junctions instead of jamming the central one.
   const GATE_LANES = [-30, -10, 10, 30];
+  const LANE_TARGET_X = { '-30': -48, '-10': 0, '10': 48, '30': 96 };
   const backRow = hz.length - 1;            // index of the landward (gate-side) row
   for (const lane of GATE_LANES) {
     const apId = addNode(lane, hz[backRow], 'gateapron', { gateLane: lane });
+    const targetX = LANE_TARGET_X[String(lane)];
     let nearId = cross[0][backRow];
     let nearD = Infinity;
     for (let i = 0; i < vx.length; i++) {
       const n = nodes[cross[i][backRow]];
-      const d = Math.abs(n.x - lane);
+      const d = Math.abs(n.x - targetX);
       if (d < nearD) { nearD = d; nearId = cross[i][backRow]; }
     }
     addCorridor(apId, nearId);

@@ -112,7 +112,8 @@ function activate(tk) {
   tk.pending = false;
   tk.state = 0; tk.hold = false; tk.barIdx = -1; tk.servingRtg = null;
   tk.s = 0; tk.pathIdx = 0; tk.path = null; tk.edgeId = -1;
-  tk.reroute = false; tk.stuck = 0;        // clear any re-routing/deadlock state
+  tk.reroute = false; tk.stuck = 0; tk.frozen = 0; tk.rerouted = false;   // clear re-route/deadlock state
+  tk.lat = 0; tk.latTarget = 0; tk.overtaking = false; tk.blockT = 0;     // clear overtake state
 }
 
 // Park a truck that could not be seated (or is still waiting out enterWait):
@@ -147,7 +148,7 @@ function reassign(tk) {
 }
 
 export function initTrucks() {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     const isImport = Math.random() > 0.5;
     const v = buildTruck(cMats[i % 4]);
     const tk = {
@@ -157,6 +158,7 @@ export function initTrucks() {
       isImport, servingRtg: null, hold: false, barIdx: -1,
       x: 0, z: SPAWN_Z0, spd: 20, wait: 0, yardLane: 0, pending: true,
       inLaneX: IN_LANES[0], outLaneX: OUT_LANES[0], enterWait: 0,
+      lat: 0, latTarget: 0, overtaking: false, blockT: 0,
     };
     tk.cargo.visible = isImport;
     assignLanes(tk);                       // stable lane pair by id (spreads load)

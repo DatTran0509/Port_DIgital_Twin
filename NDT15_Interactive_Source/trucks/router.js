@@ -43,7 +43,7 @@
 
 import { rtgCranes } from '../yard.js';
 import { trucks, reDispatch, tryPlacePending } from './dispatch.js';
-import { prepareCollision, canProceed } from './collision.js';
+import { prepareCollision, canProceed, laneClearAhead } from './collision.js';
 import { setTruckOpacity } from './truck-mesh.js';
 import { roadGraph, gatePosition } from '../layout.js';
 
@@ -78,10 +78,10 @@ const APRON_Z = NODES[APRON.values().next().value].z;
 // own lane so there is NO diagonal lane-merge at the gate.
 const GP = gatePosition();
 // Gate barriers sit ±4.5 from the gate center (see gate/gate.js). Trucks stop
-// 2 m BEFORE their barrier: entry on the +z (approach) side, exit on the −z
-// (inside) side — i.e. "check in / check out 2 m from the gate" (Req).
-const CHECKIN_Z  = GP.z + 4.5 + 2;     // entry stop line: 2 m before entry barrier
-const CHECKOUT_Z = GP.z - 4.5 - 2;     // exit  stop line: 2 m before exit barrier
+// 3 m BEFORE their barrier: entry on the +z (approach) side, exit on the −z
+// (inside) side — i.e. "check in / check out 3 m from the barrier" (Req).
+const CHECKIN_Z  = GP.z + 4.5 + 3;     // entry stop line: 3 m before entry barrier
+const CHECKOUT_Z = GP.z - 4.5 - 3;     // exit  stop line: 3 m before exit barrier
 
 // Shared fade band keyed to the gate z. A truck is fully visible (1) at/in the
 // gate (z ≤ GP.z) and fully invisible (0) once it is ≥ FADE_LEN landward of it.
@@ -108,6 +108,101 @@ const _prev = new Int32Array(N);
 const _seen = new Uint8Array(N);
 const _q = new Int32Array(N);
 const _barLift = [];
+
+/* ── Intersection reservation (one truck through a crossing at a time) ───────
+ * Yard junctions are single-lane, so to keep trucks from overlapping AS they
+ * cross, each crossing node is reserved by the CLOSEST contending truck (tie:
+ * lowest id). A truck within ENTER_DIST of a crossing it does NOT own must hold
+ * just before it; the owner drives through, and once it pulls away the next
+ * closest truck becomes owner. Because a truck releases a crossing (its nearest
+ * crossing changes) BEFORE it gets within ENTER_DIST of the next one, it never
+ * holds two crossings at once → no box-gridlock. The router's re-route + force
+ * fallbacks cover any residual edge case, so the fleet can't lock up. */
+const CROSS_NODES = NODES.filter(n => n.kind === 'crossing');
+const _crossOwner = new Int32Array(N);
+const _crossBestD = new Float32Array(N);
+const CLAIM_DIST = 24;   // start contending for a crossing within this distance
+const ENTER_DIST = 14;   // must OWN the crossing to come within this distance (≈3 m clear)
+const INSIDE_DIST = 8;   // a truck this close is physically INSIDE the crossing box
+
+// Nearest crossing within CLAIM_DIST → {id, d}; id = -1 when none close.
+function nearestCross(tk) {
+  let bid = -1, bd = CLAIM_DIST;
+  for (let i = 0; i < CROSS_NODES.length; i++) {
+    const n = CROSS_NODES[i];
+    const dx = n.x - tk.x, dz = n.z - tk.z;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    if (d < bd) { bd = d; bid = n.id; }
+  }
+  return { id: bid, d: bd };
+}
+
+// Forward component of (node − tk) along the truck's heading: > 0 ⇢ the node is
+// AHEAD of the truck (it is approaching), ≤ 0 ⇢ the node is BEHIND (the truck has
+// already passed it and is driving away). Used so a truck EXITING a junction is
+// never held by it — that false hold made trucks freeze just past a junction /
+// right in front of their block, stalling everyone behind.
+function headingDot(tk, node) {
+  const a = tk.g.rotation.y - Math.PI;
+  return (node.x - tk.x) * Math.sin(a) + (node.z - tk.z) * Math.cos(a);
+}
+
+// A truck only RESERVES (locks) a crossing it can ACTUALLY clear this moment:
+// it must be actively driving a yard path (state 2/6) AND not stalled behind a
+// same-lane leader. A truck that is itself blocked must NOT hold the junction —
+// THAT is the bug that made everyone "chờ nhau tới chết": the closest truck
+// owned the crossing even while frozen, so perpendicular traffic waited forever.
+// (A truck already INSIDE the box is handled separately so it can finish.)
+function crossEligible(tk) {
+  return (tk.state === 2 || tk.state === 6) && canProceed(tk);
+}
+
+// Once per frame: assign each crossing to the truck that should go through it.
+// Priority: a truck already INSIDE the box (must clear out) beats approaching
+// trucks; among the rest only ELIGIBLE trucks that are APPROACHING (crossing
+// ahead of them) contend, closest first, ties to the lowest id. Frozen/idle
+// trucks and trucks EXITING the junction reserve nothing.
+function reserveCrossings(trucks) {
+  for (let i = 0; i < CROSS_NODES.length; i++) {
+    const id = CROSS_NODES[i].id;
+    _crossOwner[id] = -1; _crossBestD[id] = Infinity;
+  }
+  for (let i = 0; i < trucks.length; i++) {
+    const tk = trucks[i];
+    if (tk.pending) { tk._claimCross = -1; tk._claimAhead = false; continue; }
+    const c = nearestCross(tk);
+    tk._claimCross = c.id; tk._claimD = c.d;
+    if (c.id < 0) { tk._claimAhead = false; continue; }
+    const node = NODES[c.id];
+    const inside = c.d < INSIDE_DIST;
+    const ahead = headingDot(tk, node) > 0;
+    tk._claimAhead = ahead;
+    if (!inside && !(crossEligible(tk) && ahead)) continue;  // exiting/blocked → reserves nothing
+    // Inside trucks rank ahead of approaching ones (score shifted well below 0).
+    const score = inside ? c.d - 1000 : c.d;
+    if (score < _crossBestD[c.id] - 1e-3 ||
+        (Math.abs(score - _crossBestD[c.id]) <= 1e-3 && tk.id < _crossOwner[c.id])) {
+      _crossBestD[c.id] = score; _crossOwner[c.id] = tk.id;
+    }
+  }
+}
+
+// A truck must yield before a crossing ONLY when it is APPROACHING that crossing
+// (it is ahead) AND someone else currently owns it. A crossing the truck has
+// already passed (behind it) never blocks — the truck drives on out of it. An
+// unowned crossing is free to enter.
+function crossingClear(tk) {
+  const cid = tk._claimCross;
+  if (cid === undefined || cid < 0) return true;
+  if (!tk._claimAhead) return true;                 // crossing behind us → exiting
+  const owner = _crossOwner[cid];
+  return !(tk._claimD <= ENTER_DIST && owner !== -1 && owner !== tk.id);
+}
+
+// Combined "may I move this frame?" — same-lane following AND crossing turn.
+function wayBlocked(tk) {
+  return !canProceed(tk) || !crossingClear(tk);
+}
 
 // A z-running (gate-axis) edge carries laneCenterX and must match the journey
 // direction; a lateral (x-running) edge carries laneCenterZ and is bidirectional.
@@ -165,37 +260,67 @@ function moveTowards(tk, tx, tz, maxD) {
 // target so the lateral jump at z-edge ↔ x-edge intersections sweeps smoothly.
 // Returns true when the final node of the path is reached (based on s/pathIdx,
 // not the eased position).
-function followPath(tk, step) {
+function followPath(tk, step, forward) {
   if (tk.pathIdx >= tk.path.length - 1) return true;
   const e = edgeBetween(tk.path[tk.pathIdx], tk.path[tk.pathIdx + 1]);
   const from = NODES[tk.path[tk.pathIdx]], to = NODES[tk.path[tk.pathIdx + 1]];
   const len = e.length || 1e-4;
-  tk.s += step;
+
+  // Ease the lateral OFFSET toward its target (overtake pull-out / merge-back).
+  const maxLat = Math.max(step, 0.4);          // lateral slide speed per frame
+  let dl = (tk.latTarget || 0) - (tk.lat || 0);
+  if (Math.abs(dl) > maxLat) dl = Math.sign(dl) * maxLat;
+  tk.lat = (tk.lat || 0) + dl;
+
+  if (forward) tk.s += step;
   const f = Math.min(1, tk.s / len);
   // The FORWARD coordinate follows progress exactly (no lag); the LATERAL
-  // coordinate merges toward the lane center but is CLAMPED so the truck never
-  // slides sideways faster than it drives forward (≤ 45° merge). This removes
-  // the sudden sideways "jerk" when a wide gate lane (±10/±30) merges onto the
-  // narrow central road lane (±5) — the merge now sweeps diagonally instead.
-  const maxLat = step; // max lateral move per frame == forward step (45°)
+  // coordinate eases toward (laneCenter + tk.lat) but is CLAMPED so the truck
+  // never slides sideways faster than it drives (≤ 45° merge). This both removes
+  // the sideways "jerk" at gate-lane → road-lane merges AND drives the smooth
+  // swing into/out of the opposing lane during a counter-flow overtake.
   let hx = 0, hz = 0;
   if (e.laneCenterX !== undefined) {        // z-running: x is lateral, z forward
-    tk.z = from.z + (to.z - from.z) * f;
-    let dx = e.laneCenterX - tk.x;
+    if (forward) tk.z = from.z + (to.z - from.z) * f;
+    let dx = (e.laneCenterX + tk.lat) - tk.x;
     if (Math.abs(dx) > maxLat) dx = Math.sign(dx) * maxLat;
     tk.x += dx;
     hz = Math.sign(to.z - from.z);
   } else {                                  // x-running: z is lateral, x forward
-    tk.x = from.x + (to.x - from.x) * f;
-    let dz = e.laneCenterZ - tk.z;
+    if (forward) tk.x = from.x + (to.x - from.x) * f;
+    let dz = (e.laneCenterZ + tk.lat) - tk.z;
     if (Math.abs(dz) > maxLat) dz = Math.sign(dz) * maxLat;
     tk.z += dz;
     hx = Math.sign(to.x - from.x);
   }
   tk.edgeId = e.id;
   tk.g.rotation.y = easeAngle(tk.g.rotation.y, Math.atan2(hx, hz) + Math.PI, TURN_K);
-  if (tk.s >= len) { tk.s -= len; tk.pathIdx++; if (tk.pathIdx >= tk.path.length - 1) return true; }
+  if (forward && tk.s >= len) {
+    tk.s -= len; tk.pathIdx++;
+    // Crossing a junction: the next edge's lateral axis may differ, so clear any
+    // overtake offset here (the no-start-near-node guard makes residual lat ≈ 0).
+    tk.lat = 0; tk.latTarget = 0; tk.overtaking = false;
+    if (tk.pathIdx >= tk.path.length - 1) return true;
+  }
   return false;
+}
+
+// Lane geometry of the truck's CURRENT directed edge: which world axis is
+// lateral, the truck's OWN lane center, the OPPOSING lane center (mirror of own
+// across the corridor centerline), and `rem` — the distance still to drive on
+// this edge. Returns null when off-path. Used by the overtake logic to know
+// where to swing out to, how far to come back, and whether there is ROOM left on
+// the edge to overtake (so an overtake never spills across a junction onto an
+// edge whose lateral axis differs).
+function curLane(tk) {
+  if (!tk.path || tk.pathIdx >= tk.path.length - 1) return null;
+  const e = edgeBetween(tk.path[tk.pathIdx], tk.path[tk.pathIdx + 1]);
+  const from = NODES[tk.path[tk.pathIdx]];
+  const rem = (e.length || 1e-4) - tk.s;
+  if (e.laneCenterX !== undefined) {        // z-running edge (from.x == to.x)
+    return { axis: 'x', own: e.laneCenterX, opp: 2 * from.x - e.laneCenterX, rem };
+  }
+  return { axis: 'z', own: e.laneCenterZ, opp: 2 * from.z - e.laneCenterZ, rem }; // x-running
 }
 
 // Nearest gate barrier (by lane x) to the truck's current x.
@@ -214,26 +339,105 @@ function barrierFor(barriers, tk) {
 // it and follows the new path. Returns true when a genuinely different route was
 // adopted. (Req: congested ahead → immediately find another way.)
 const REROUTE_T = 2.2;   // seconds blocked before trying to re-route around
-const FORCE_T   = 6.0;   // seconds blocked before forcing through (anti-freeze)
+const OVERTAKE_T = 1.0;  // seconds blocked by an in-lane leader before pulling out
+const OVERTAKE_LOOK = 26; // opposing lane must be clear this far ahead to pull out
+const RETURN_LOOK = 18;  // own lane must be clear this far ahead before merging back
+const GIVEUP_T  = 30.0;  // absolute last-resort deadlock break (rare; trucks no longer vanish on normal jams)
 
-// Anti-freeze gate for the OFF-graph straight states: normally hold when the
-// way ahead is not clear, but after FORCE_T seconds of being blocked, force a
-// move so the fleet can NEVER lock up permanently (last resort).
-function clearAhead(tk, dt) {
-  if (canProceed(tk)) { tk.frozen = 0; return true; }
-  tk.frozen = (tk.frozen || 0) + dt;
-  if (tk.frozen >= FORCE_T) { tk.frozen = 0; return true; }
-  return false;
+// Off-graph straight states (gate lanes): hold while the way ahead is blocked.
+// NEVER push through (that caused trucks to stack) and — per the new behavior —
+// NEVER vanish a truck that is merely queued: it simply waits its turn. Returns
+// true only when the way is genuinely clear.
+function clearAhead(tk) {
+  return !wayBlocked(tk);
 }
 
+/* ── Counter-flow overtake + re-route driving leg ─────────────────────────────
+ * driveLeg() drives a truck along its current path toward `dest` (direction
+ * filter `dir`), handling a blocked road WITHOUT ever freezing-then-vanishing:
+ *
+ *   1. If a truck is stalled directly ahead in the truck's OWN lane for
+ *      OVERTAKE_T seconds AND the OPPOSING lane is clear far enough ahead, the
+ *      truck borrows the opposing lane (sets a lateral offset) to pass — exactly
+ *      "kẹt quá → đi ngược chiều để tránh". It merges BACK to its own lane the
+ *      moment that lane is clear of the blocker ("trở lại lane của mình ngay").
+ *   2. If overtaking isn't possible (oncoming traffic), it re-routes around the
+ *      blocker once per stuck episode.
+ *   3. Forward motion is gated by wayBlocked(): while pulling sideways out of the
+ *      lane the truck does NOT drive forward into the blocker; once it has
+ *      cleared its lane (or merged into the clear opposing lane) it drives on.
+ *
+ * Trucks queued for THEIR OWN block's crane just wait in lane (never overtake /
+ * re-route). Returns true when the path's final node is reached.
+ * ──────────────────────────────────────────────────────────────────────────── */
+function driveLeg(tk, dt, step, dest, dir) {
+  const ln = curLane(tk);
+  const laneBlocked  = !canProceed(tk);      // a truck sits ahead in MY lane
+  const crossBlocked = !crossingClear(tk);   // waiting for a junction reservation
+  const atOwnBlock = dir === 'inbound' && tk.path && tk.path[tk.pathIdx + 1] === SERVICE[tk.assignedBlock];
+
+  if (tk.overtaking && ln) {
+    // Mid-overtake: hug the opposing lane. Merge BACK as soon as EITHER the own
+    // lane is clear ahead (we've passed the blocker) OR oncoming traffic appears
+    // in the opposing lane (yield: tuck back behind the blocker, never head-on).
+    const ownClear = laneClearAhead(tk, ln.axis, ln.own, RETURN_LOOK);
+    const oncoming = !laneClearAhead(tk, ln.axis, ln.opp, OVERTAKE_LOOK);
+    tk.latTarget = ln.opp - ln.own;
+    if (ownClear || oncoming) {
+      tk.overtaking = false; tk.latTarget = 0; tk.blockT = 0;
+    }
+  } else {
+    tk.overtaking = false; tk.latTarget = 0;
+    // Decide to pull out only for a same-lane blocker (not a crossing wait) and
+    // never when queuing for our own crane.
+    if (laneBlocked && !crossBlocked && !atOwnBlock && ln) {
+      tk.blockT = (tk.blockT || 0) + dt;
+      if (tk.blockT > OVERTAKE_T && ln.rem > OVERTAKE_LOOK * 0.6 &&
+          laneClearAhead(tk, ln.axis, ln.opp, OVERTAKE_LOOK)) {
+        tk.overtaking = true; tk.latTarget = ln.opp - ln.own;
+      }
+    } else {
+      tk.blockT = 0;
+    }
+  }
+
+  // Re-route around a persistent PHYSICAL blocker (a stalled truck in our lane)
+  // when we can't overtake it. We do NOT re-route merely because we're waiting
+  // our turn at a junction (crossBlocked) — that wait clears on its own, and
+  // re-routing on it is what made trucks "đổi hướng" oddly at 4-ways.
+  if (!tk.overtaking && laneBlocked && !atOwnBlock) {
+    tk.stuck = (tk.stuck || 0) + dt;
+    if (!tk.rerouted && tk.stuck > REROUTE_T && tryReroute(tk, dest, dir)) {
+      tk.rerouted = true; tk.stuck = 0; return false;
+    }
+    // Absolute last resort: genuinely wedged for GIVEUP_T → re-dispatch (rare).
+    if (tk.stuck > GIVEUP_T) { tk.stuck = 0; tk.rerouted = false; tk.lat = 0; tk.latTarget = 0; tk.overtaking = false; reDispatch(tk); return false; }
+  } else if (!tk.overtaking) {
+    tk.stuck = 0; tk.rerouted = false;
+  }
+
+  const moving = !wayBlocked(tk);            // true once the lane (own/opposing) is clear
+  const arrived = followPath(tk, step, moving);
+  if (arrived) {
+    tk.lat = 0; tk.latTarget = 0; tk.overtaking = false;
+    tk.blockT = 0; tk.stuck = 0; tk.rerouted = false;
+  }
+  return arrived;
+}
+
+// Re-routing WITHOUT reversing (so a truck never backs into the queue behind
+// it): when blocked, replan the route FROM the next node, avoiding the node
+// beyond it, and splice it on — the truck keeps its current edge and simply
+// diverges at the upcoming junction. Returns true if a different route was found.
 function tryReroute(tk, dest, dir) {
-  if (!tk.path || tk.pathIdx + 1 >= tk.path.length) return false;
-  const cur = tk.path[tk.pathIdx];          // node just behind the truck
-  const nxt = tk.path[tk.pathIdx + 1];      // blocked node ahead
-  const np = pathfind(cur, dest, dir, nxt); // plan around the blocked node
-  if (!np || np.length < 2 || np[1] === nxt) return false;
-  tk.path = np; tk.pathIdx = 0; tk.s = 0;
-  tk.reroute = true; tk.returnNode = cur;   // drive back to `cur`, then follow np
+  if (!tk.path || tk.pathIdx + 2 >= tk.path.length) return false;
+  const cur = tk.path[tk.pathIdx];
+  const nxt = tk.path[tk.pathIdx + 1];      // node the truck is heading to
+  const after = tk.path[tk.pathIdx + 2];    // node beyond (currently-planned) — avoid it
+  const np = pathfind(nxt, dest, dir, after);
+  if (!np || np.length < 2 || np[1] === after) return false;
+  tk.path = [cur].concat(np);               // keep current edge cur→nxt, diverge at nxt
+  tk.pathIdx = 0;                            // s preserved → continue current edge
   return true;
 }
 
@@ -249,6 +453,7 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
   // Evaluate collision/intersection state ONCE per frame into preallocated
   // scratch; each truck's canProceed(tk) below only reads that scratch.
   prepareCollision(trucks);
+  reserveCrossings(trucks);    // one-at-a-time junction ownership (anti-overlap)
 
   trucks.forEach(tk => {
     // Deferred trucks hold off-lane (parked invisibly by dispatch) until a
@@ -271,7 +476,7 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
 
     if (tk.state === 0) {                    // approach the gate on THIS lane
       tk.edgeId = -1;
-      if (!clearAhead(tk, dt)) return;       // keep 3 m behind (force after FORCE_T)
+      if (!clearAhead(tk)) return;           // keep 3 m behind; never push/stack
       if (moveTowards(tk, tk.inLaneX, CHECKIN_Z, step)) {
         tk.state = 1; tk.wait = 0.8;
         tk.barIdx = barrierFor(barriers, tk);
@@ -289,7 +494,7 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
     } else if (tk.state === 1.7) {           // drive the gate→apron stub (straight)
       tk.edgeId = -1;
       if (tk.barIdx >= 0) _barLift[tk.barIdx] = 1;   // hold barrier up while passing
-      if (!clearAhead(tk, dt)) return;
+      if (!clearAhead(tk)) return;
       if (moveTowards(tk, tk.inLaneX, APRON_Z, step)) {
         const path = pathfind(APRON.get(tk.inLaneX), SERVICE[tk.assignedBlock], 'inbound');
         if (!path) { tk.hold = true; return; }       // Req 5.7: hold, retry
@@ -301,26 +506,7 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
         tk.barIdx = -1;
       }
     } else if (tk.state === 2) {             // follow inbound path to service node
-      if (tk.reroute) {                      // turning around to an alternate route
-        tk.edgeId = -1;
-        const rn = NODES[tk.returnNode];
-        if (moveTowards(tk, rn.x, rn.z, step)) { tk.reroute = false; tk.s = 0; tk.pathIdx = 0; }
-        return;
-      }
-      if (!canProceed(tk)) {                 // blocked ahead → wait / re-route / force
-        // Queued for THIS truck's OWN block crane (final hop = its service node):
-        // just wait 3 m behind until the crane frees — never re-route or force
-        // (forcing would stack onto the truck being serviced).
-        const atOwnBlock = tk.path && tk.path[tk.pathIdx + 1] === SERVICE[tk.assignedBlock];
-        if (atOwnBlock) { tk.stuck = 0; return; }
-        tk.stuck = (tk.stuck || 0) + dt;
-        // Otherwise re-route AROUND the blocker (e.g. a truck busy loading on the
-        // through-road); if still stuck after FORCE_T, force through (anti-freeze).
-        if (tk.stuck > REROUTE_T && tryReroute(tk, SERVICE[tk.assignedBlock], 'inbound')) { tk.stuck = 0; return; }
-        if (tk.stuck < FORCE_T) return;
-      }
-      tk.stuck = 0;
-      if (followPath(tk, step)) tk.state = 3;   // keep edgeId so queued trucks see it
+      if (driveLeg(tk, dt, step, SERVICE[tk.assignedBlock], 'inbound')) tk.state = 3;
     } else if (tk.state === 3) {             // hand off to the block's RTG crane
       const rc = rtgCranes[tk.assignedBlock];
       if (rc && rc.state === 0 && !rc.tTrk) {
@@ -335,22 +521,10 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
       tk.hold = false; tk.servingRtg = null;
       tk.path = path; tk.pathIdx = 0; tk.s = 0; tk.state = 6;
     } else if (tk.state === 6) {             // follow outbound path to the exit apron
-      if (tk.reroute) {                      // turning around to an alternate route
-        tk.edgeId = -1;
-        const rn = NODES[tk.returnNode];
-        if (moveTowards(tk, rn.x, rn.z, step)) { tk.reroute = false; tk.s = 0; tk.pathIdx = 0; }
-        return;
-      }
-      if (!canProceed(tk)) {
-        tk.stuck = (tk.stuck || 0) + dt;
-        if (tk.stuck > REROUTE_T && tryReroute(tk, APRON.get(tk.outLaneX), 'outbound')) { tk.stuck = 0; return; }
-        if (tk.stuck < FORCE_T) return;      // after FORCE_T, fall through (force move)
-      }
-      tk.stuck = 0;
-      if (followPath(tk, step)) { tk.edgeId = -1; tk.state = 6.2; }
+      if (driveLeg(tk, dt, step, APRON.get(tk.outLaneX), 'outbound')) { tk.edgeId = -1; tk.state = 6.2; }
     } else if (tk.state === 6.2) {           // drive the apron→gate stub up (straight)
       tk.edgeId = -1;
-      if (!clearAhead(tk, dt)) return;
+      if (!clearAhead(tk)) return;
       if (moveTowards(tk, tk.outLaneX, CHECKOUT_Z, step)) {
         tk.state = 6.5; tk.wait = 1.0;
         tk.barIdx = barrierFor(barriers, tk);
@@ -371,7 +545,7 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
       tk.barIdx = -1; tk.state = 7;
     } else if (tk.state === 7) {             // drive away landward, then re-dispatch
       tk.edgeId = -1;
-      if (!clearAhead(tk, dt)) return;
+      if (!clearAhead(tk)) return;
       if (moveTowards(tk, tk.outLaneX, GP.z + 80, step)) reDispatch(tk);
     }
   });
