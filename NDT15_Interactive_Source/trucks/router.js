@@ -72,6 +72,11 @@ for (const n of NODES) {
 // each gate lane. Trucks drive the gate↔apron stub OFF-graph, straight in-lane.
 const APRON_Z = NODES[APRON.values().next().value].z;
 
+// The OUTBOUND (exit) gate lanes — the apron lanes on the exit side (x > 0).
+// The router routes an exiting truck to whichever of these is NEAREST by path
+// cost, instead of a fixed pre-assigned lane (avoids the drive-past-then-U-turn).
+const OUT_APRON = [...APRON.keys()].filter(x => x > 0);
+
 // Gate geometry for the (non-graph) approach / exit phases. Each truck carries
 // its own inbound/outbound lane x (tk.inLaneX / tk.outLaneX, assigned in
 // dispatch.js over the 4 gate lanes at x = ±10/±30), driven straight down/up its
@@ -237,6 +242,28 @@ function pathfind(from, to, dir, avoid = -1) {
   return path.reverse();
 }
 
+// Total driving length of a node-id path (sum of its directed-edge lengths).
+// Used to pick the NEAREST exit gate among the candidate exit lanes.
+function pathCost(p) {
+  let c = 0;
+  for (let i = 0; i + 1 < p.length; i++) { const e = edgeBetween(p[i], p[i + 1]); if (e) c += e.length; }
+  return c;
+}
+
+// Plan the shortest OUTBOUND route from a service node to ANY exit gate lane,
+// returning { path, lane } for the nearest reachable gate, or null. The truck
+// adopts that gate as its outLaneX so the gate-stub drive (state 6.2+) matches.
+function planNearestExit(fromService) {
+  let best = null;
+  for (const lane of OUT_APRON) {
+    const p = pathfind(fromService, APRON.get(lane), 'outbound');
+    if (!p) continue;
+    const cost = pathCost(p);
+    if (!best || cost < best.cost) best = { path: p, lane, cost };
+  }
+  return best;
+}
+
 /* ── Movement helpers ─────────────────────────────────────────────────────── */
 
 // Straight move toward a world point (used for the gate approach/exit and the
@@ -254,51 +281,106 @@ function moveTowards(tk, tx, tz, maxD) {
   return false;
 }
 
-// Advance along the current directed edge, pinned to its lane centerline.
-// Scalar progress `s` still advances along the edge (arrival/handoff timing is
-// unchanged); only the RENDERED tk.x/tk.z/rotation are eased toward the in-lane
-// target so the lateral jump at z-edge ↔ x-edge intersections sweeps smoothly.
-// Returns true when the final node of the path is reached (based on s/pathIdx,
-// not the eased position).
+// Advance along the current directed edge. Scalar progress `s` still advances
+// along the edge (arrival/handoff timing unchanged); the RENDERED position is
+// the edge's lane rail on straights, but is rounded into a smooth quadratic
+// CORNER as the path turns at a junction. The corner spans CORNER metres BEFORE
+// the node and CORNER metres AFTER it, so the truck begins easing into the turn
+// before it reaches the yellow centre line and sweeps through a curve instead of
+// snapping 90° past it. Returns true when the path's final node is reached.
+const CORNER = 10;                       // corner half-length (metres) each side of a junction
+
+function railPoint(e, from, to, frac) {  // point on an edge's lane at fraction frac
+  frac = Math.max(0, Math.min(1, frac));
+  if (e.laneCenterX !== undefined) return { x: e.laneCenterX, z: from.z + (to.z - from.z) * frac };
+  return { x: from.x + (to.x - from.x) * frac, z: e.laneCenterZ };
+}
+function isTurn(e1, e2) {                 // perpendicular edges → a real turn
+  return (e1.laneCenterX !== undefined) !== (e2.laneCenterX !== undefined);
+}
+function cornerCtrl(e1, e2) {             // intersection of the two lane lines
+  if (e1.laneCenterX !== undefined) return { x: e1.laneCenterX, z: e2.laneCenterZ };
+  return { x: e2.laneCenterX, z: e1.laneCenterZ };
+}
+function cornerR(e1, e2) {                // corner radius, clamped to both edge lengths
+  return Math.min(CORNER, (e1.length || 1e-4) * 0.45, (e2.length || 1e-4) * 0.45);
+}
+function bez(p0, p1, p2, t) {
+  const u = 1 - t;
+  return { x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x, z: u * u * p0.z + 2 * u * t * p1.z + t * t * p2.z };
+}
+function bezHead(p0, p1, p2, t) {
+  const u = 1 - t;
+  const tx = 2 * u * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+  const tz = 2 * u * (p1.z - p0.z) + 2 * t * (p2.z - p1.z);
+  return Math.atan2(tx, tz) + Math.PI;
+}
+
 function followPath(tk, step, forward) {
   if (tk.pathIdx >= tk.path.length - 1) return true;
-  const e = edgeBetween(tk.path[tk.pathIdx], tk.path[tk.pathIdx + 1]);
-  const from = NODES[tk.path[tk.pathIdx]], to = NODES[tk.path[tk.pathIdx + 1]];
+  const path = tk.path, i = tk.pathIdx;
+  const e = edgeBetween(path[i], path[i + 1]);
+  const from = NODES[path[i]], to = NODES[path[i + 1]];
   const len = e.length || 1e-4;
 
   // Ease the lateral OFFSET toward its target (overtake pull-out / merge-back).
-  const maxLat = Math.max(step, 0.4);          // lateral slide speed per frame
+  const maxLat = Math.max(step, 0.4);
   let dl = (tk.latTarget || 0) - (tk.lat || 0);
   if (Math.abs(dl) > maxLat) dl = Math.sign(dl) * maxLat;
   tk.lat = (tk.lat || 0) + dl;
 
   if (forward) tk.s += step;
   const f = Math.min(1, tk.s / len);
-  // The FORWARD coordinate follows progress exactly (no lag); the LATERAL
-  // coordinate eases toward (laneCenter + tk.lat) but is CLAMPED so the truck
-  // never slides sideways faster than it drives (≤ 45° merge). This both removes
-  // the sideways "jerk" at gate-lane → road-lane merges AND drives the smooth
-  // swing into/out of the opposing lane during a counter-flow overtake.
-  let hx = 0, hz = 0;
-  if (e.laneCenterX !== undefined) {        // z-running: x is lateral, z forward
-    if (forward) tk.z = from.z + (to.z - from.z) * f;
-    let dx = (e.laneCenterX + tk.lat) - tk.x;
-    if (Math.abs(dx) > maxLat) dx = Math.sign(dx) * maxLat;
-    tk.x += dx;
-    hz = Math.sign(to.z - from.z);
-  } else {                                  // x-running: z is lateral, x forward
-    if (forward) tk.x = from.x + (to.x - from.x) * f;
-    let dz = (e.laneCenterZ + tk.lat) - tk.z;
-    if (Math.abs(dz) > maxLat) dz = Math.sign(dz) * maxLat;
-    tk.z += dz;
-    hx = Math.sign(to.x - from.x);
+
+  // Neighbour edges for corner rounding (entering the next turn / leaving the last).
+  const eNext = (i + 2 <= path.length - 1) ? edgeBetween(path[i + 1], path[i + 2]) : null;
+  const ePrev = (i - 1 >= 0) ? edgeBetween(path[i - 1], path[i]) : null;
+  const Rn = eNext ? cornerR(e, eNext) : 0;
+  const Rp = ePrev ? cornerR(ePrev, e) : 0;
+
+  if (eNext && isTurn(e, eNext) && tk.s > len - Rn) {
+    // FIRST half of the upcoming corner (before the node): sweep e → eNext.
+    const t = 0.5 * (tk.s - (len - Rn)) / Rn;
+    const p0 = railPoint(e, from, to, (len - Rn) / len);
+    const p2 = railPoint(eNext, NODES[path[i + 1]], NODES[path[i + 2]], Rn / (eNext.length || 1e-4));
+    const p1 = cornerCtrl(e, eNext);
+    const p = bez(p0, p1, p2, t);
+    tk.x = p.x; tk.z = p.z;
+    tk.g.rotation.y = easeAngle(tk.g.rotation.y, bezHead(p0, p1, p2, t), 0.4);
+  } else if (ePrev && isTurn(ePrev, e) && tk.s < Rp) {
+    // SECOND half of the corner (after the node): finish the sweep ePrev → e.
+    const lenP = ePrev.length || 1e-4;
+    const t = 0.5 + 0.5 * (tk.s / Rp);
+    const p0 = railPoint(ePrev, NODES[path[i - 1]], NODES[path[i]], (lenP - Rp) / lenP);
+    const p2 = railPoint(e, from, to, Rp / len);
+    const p1 = cornerCtrl(ePrev, e);
+    const p = bez(p0, p1, p2, t);
+    tk.x = p.x; tk.z = p.z;
+    tk.g.rotation.y = easeAngle(tk.g.rotation.y, bezHead(p0, p1, p2, t), 0.4);
+  } else {
+    // Straight rail: forward coordinate by progress, lateral eased toward the
+    // lane centre (+ overtake offset), clamped so it never slides > 45°/frame.
+    let hx = 0, hz = 0;
+    if (e.laneCenterX !== undefined) {        // z-running: x lateral, z forward
+      if (forward) tk.z = from.z + (to.z - from.z) * f;
+      let dx = (e.laneCenterX + tk.lat) - tk.x;
+      if (Math.abs(dx) > maxLat) dx = Math.sign(dx) * maxLat;
+      tk.x += dx;
+      hz = Math.sign(to.z - from.z);
+    } else {                                  // x-running: z lateral, x forward
+      if (forward) tk.x = from.x + (to.x - from.x) * f;
+      let dz = (e.laneCenterZ + tk.lat) - tk.z;
+      if (Math.abs(dz) > maxLat) dz = Math.sign(dz) * maxLat;
+      tk.z += dz;
+      hx = Math.sign(to.x - from.x);
+    }
+    tk.g.rotation.y = easeAngle(tk.g.rotation.y, Math.atan2(hx, hz) + Math.PI, TURN_K);
   }
+
   tk.edgeId = e.id;
-  tk.g.rotation.y = easeAngle(tk.g.rotation.y, Math.atan2(hx, hz) + Math.PI, TURN_K);
   if (forward && tk.s >= len) {
     tk.s -= len; tk.pathIdx++;
-    // Crossing a junction: the next edge's lateral axis may differ, so clear any
-    // overtake offset here (the no-start-near-node guard makes residual lat ≈ 0).
+    // Clear any overtake offset at the junction (next edge's lateral axis differs).
     tk.lat = 0; tk.latTarget = 0; tk.overtaking = false;
     if (tk.pathIdx >= tk.path.length - 1) return true;
   }
@@ -515,11 +597,12 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
       }                                       // else hold stationary at the node (Req 5.5)
     } else if (tk.state === 3.5) {           // being serviced; RTG sets state = 3.6
       /* wait */
-    } else if (tk.state === 3.6) {           // released → plan outbound route
-      const path = pathfind(SERVICE[tk.assignedBlock], APRON.get(tk.outLaneX), 'outbound');
-      if (!path) { tk.hold = true; return; }
+    } else if (tk.state === 3.6) {           // released → plan nearest-exit outbound route
+      const exit = planNearestExit(SERVICE[tk.assignedBlock]);
+      if (!exit) { tk.hold = true; return; }
       tk.hold = false; tk.servingRtg = null;
-      tk.path = path; tk.pathIdx = 0; tk.s = 0; tk.state = 6;
+      tk.outLaneX = exit.lane;               // adopt the nearest gate's lane for the stub drive
+      tk.path = exit.path; tk.pathIdx = 0; tk.s = 0; tk.state = 6;
     } else if (tk.state === 6) {             // follow outbound path to the exit apron
       if (driveLeg(tk, dt, step, APRON.get(tk.outLaneX), 'outbound')) { tk.edgeId = -1; tk.state = 6.2; }
     } else if (tk.state === 6.2) {           // drive the apron→gate stub up (straight)

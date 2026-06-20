@@ -397,24 +397,23 @@ export function roadGraph() {
 
   // ── 2. gate apron nodes — ONE per physical gate lane ──────────────────────
   // Each of the 4 gate lanes (x = ±10 / ±30, mirroring gate/gate.js + dispatch)
-  // gets its OWN node on the back (landward) road. To AVOID inbound/outbound
-  // fighting over the same junction, each lane feeds a SEPARATE back-row crossing
-  // — entry lanes to the left crossings, exit lanes to the right — so the gate
-  // funnel spreads across four junctions instead of jamming the central one.
+  // gets its OWN node on the back (landward) road. Each apron node connects to
+  // the TWO back-row crossings NEAREST its own lane x, so a truck reaches (or
+  // leaves) the gate through whichever junction is closest to the column it is
+  // on — no driving past the gate and U-turning back. The router then picks the
+  // nearest gate by path cost (see router state 3.6), so exits stay short.
   const GATE_LANES = [-30, -10, 10, 30];
-  const LANE_TARGET_X = { '-30': -48, '-10': 0, '10': 48, '30': 96 };
   const backRow = hz.length - 1;            // index of the landward (gate-side) row
   for (const lane of GATE_LANES) {
     const apId = addNode(lane, hz[backRow], 'gateapron', { gateLane: lane });
-    const targetX = LANE_TARGET_X[String(lane)];
-    let nearId = cross[0][backRow];
-    let nearD = Infinity;
+    // rank back-row crossings by |x - lane|, connect the two nearest.
+    const ranked = [];
     for (let i = 0; i < vx.length; i++) {
-      const n = nodes[cross[i][backRow]];
-      const d = Math.abs(n.x - targetX);
-      if (d < nearD) { nearD = d; nearId = cross[i][backRow]; }
+      ranked.push({ id: cross[i][backRow], d: Math.abs(nodes[cross[i][backRow]].x - lane) });
     }
-    addCorridor(apId, nearId);
+    ranked.sort((a, b) => a.d - b.d);
+    addCorridor(apId, ranked[0].id);
+    if (ranked[1]) addCorridor(apId, ranked[1].id);
   }
 
   // ── 3. service nodes (one per block), placed ON the block's left-side road ──
