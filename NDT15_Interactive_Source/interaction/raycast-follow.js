@@ -77,6 +77,7 @@ export function initRaycastFollow() {
         else if (clickedData.objType === 'uav') dist = maxDim * 8.0;
         else if (clickedData.objType === 'energy') dist = maxDim * 3.0;
         else if (clickedData.objType === 'truck') dist = maxDim * 8.0;
+        else if (clickedData.objType === 'transfercrane') dist = maxDim * 2.0;
 
         if (dist < 25) dist = 25;
 

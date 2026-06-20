@@ -14,13 +14,16 @@
  * ────────────────────────────────────────────────────────────────────────── */
 import { initBlocks } from './yard/blocks.js';
 import { initRtgCranes } from './yard/rtg.js';
+import { initTransferCranes } from './yard/transfer-crane.js';
 
 // Re-export the original public API (live bindings).
 export { blockX, yardLanes } from './yard/blocks.js';
 export { updateRtgCranes, rtgCranes } from './yard/rtg.js';
+export { updateTransferCranes, transferCranes } from './yard/transfer-crane.js';
 export { updateBlockScreens, blockCanvases, blockTexs, blockMats } from './yard/block-screens.js';
 
 export function initYard() {
   initBlocks();
   initRtgCranes();
+  initTransferCranes();   // big perimeter RMG cranes (built after blocks → block data ready)
 }

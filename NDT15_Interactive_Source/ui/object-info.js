@@ -1,8 +1,36 @@
 import { vessels } from '../ships.js';
+import { trucks, updateTruckInfo } from '../trucks.js';
 import { showRadarShipPopover } from './radar-popover.js';
 
 export let activeObjType = null;
 export let activeObjData = null;
+
+// Build the rows HTML for a details object (key → value).
+function detailsHTML(details) {
+  let html = '';
+  for (const [k, v] of Object.entries(details)) {
+    html += `<div class="obj-row"><span class="obj-lbl">${k}</span><span class="obj-val">${v}</span></div>`;
+  }
+  return html;
+}
+
+// Re-render the open panel's details box from (possibly mutated) live data.
+function refreshDetails(panel, data) {
+  const box = panel.querySelector('.obj-details-box');
+  if (box && data && data.details) box.innerHTML = detailsHTML(data.details);
+}
+
+// Fold a vessel's live pose into its info data (status + running handled count).
+function shipLive(v) {
+  const d = v.data, ps = v.ps;
+  if (!d || !ps) return;
+  d.details['Trạng thái'] = ps.progress || '—';
+  if (d._handledKey) {
+    const frac = ps.dockFrac || 0;
+    const total = d._teuHandle || 0;
+    d.details[d._handledKey] = Math.round(total * frac) + ' / ' + total + ' cont';
+  }
+}
 
 export function updateActivePanels(el) {
   const panel = document.getElementById('obj-info-panel');
@@ -61,7 +89,14 @@ export function updateActivePanels(el) {
         statusText.textContent = v.ps.progress;
         etaText.textContent = v.ps.etaText;
       }
+      shipLive(v);                       // refresh live status + handled count
+      refreshDetails(panel, activeObjData);
     }
+  } else if (activeObjType === 'truck' && activeObjData) {
+    const tk = trucks.find(t => t.g.userData && t.g.userData.data === activeObjData);
+    if (tk) { updateTruckInfo(tk); refreshDetails(panel, activeObjData); }
+  } else if (activeObjType === 'transfercrane' && activeObjData) {
+    refreshDetails(panel, activeObjData);   // status mutated by the crane update loop
   }
 }
 

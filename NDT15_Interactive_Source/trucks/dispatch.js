@@ -42,6 +42,7 @@
 import { cMats } from '../core.js';
 import { buildTruck, setTruckOpacity } from './truck-mesh.js';
 import { PARAMS, gatePosition } from '../layout.js';
+import { blocks, blockData } from '../yard/blocks.js';
 
 export const trucks = [];
 
@@ -145,6 +146,73 @@ function reassign(tk) {
   tk.assignedBlock = Math.floor(Math.random() * BLOCK_COUNT);  // Req 5.6
   tk.isImport = Math.random() > 0.5;                            // cargo direction
   tk.cargo.visible = tk.isImport;
+  assignCargo(tk);                                             // fresh container/goods
+  updateTruckInfo(tk);                                         // refresh click-info snapshot
+}
+
+/* ── Rich truck cargo / haulage info ──────────────────────────────────────── */
+const CONT_TYPES = ["20'GP (hàng khô)", "40'GP (hàng khô)", "40'HC (cao 9'6\")", "20'RF (lạnh)", "40'RF (lạnh)", "20'OT (mui trần)", "40'FR (sàn phẳng)"];
+const GOODS = ['Điện tử & linh kiện', 'Hàng dệt may', 'Nông sản', 'Máy móc thiết bị', 'Hóa chất công nghiệp', 'Đồ gỗ nội thất', 'Thủy sản đông lạnh', 'Linh kiện ô tô', 'Cà phê & hạt điều', 'Gạo xuất khẩu'];
+const OWNERS = ['MSCU', 'MAEU', 'CMAU', 'COSU', 'OOLU', 'HLXU', 'TGHU', 'EGHU'];
+const pickRand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+// Stable, per-haul cargo identity (a random ISO-6346-style container number,
+// type, commodity and gross weight). Re-rolled on each (re)dispatch.
+function assignCargo(tk) {
+  const owner = pickRand(OWNERS);
+  tk.contNo = owner + ' ' + Math.floor(100000 + Math.random() * 899999) + '-' + Math.floor(Math.random() * 10);
+  tk.contType = pickRand(CONT_TYPES);
+  tk.goods = pickRand(GOODS);
+  tk.contWeight = (8 + Math.random() * 22).toFixed(1);         // gross tonnes
+  tk.sealNo = 'VN' + Math.floor(100000 + Math.random() * 899999);
+}
+
+// Live driving-status text derived from the truck's state machine state.
+function truckStatusText(tk) {
+  if (tk.pending) return '🕓 Chờ điều phối vào cảng';
+  const s = tk.state;
+  if (s === 0) return '🚦 Đang tiến vào cổng';
+  if (s === 1 || s === 1.7) return '🪪 Kiểm tra cổng (check-in)';
+  if (s === 2) return '➡️ Đang vào bãi đích';
+  if (s === 3 || s === 3.5) return tk.isImport ? '⬇️ Cẩu đang dỡ hàng xuống bãi' : '⬆️ Cẩu đang bốc hàng lên xe';
+  if (s === 3.6 || s === 6) return '↩️ Rời bãi, tìm đường ra cổng';
+  if (s === 6.2 || s === 6.5) return '🪪 Kiểm tra cổng (check-out)';
+  if (s === 7) return '✅ Hoàn tất, rời cảng';
+  return '🚚 Đang lưu thông trong cảng';
+}
+
+// Refresh the truck's clickable info object (mutated in place so any open panel
+// stays bound). Combines the static driver/plate fields (kept from build) with
+// the live haul: cargo, operation (load/unload), destination block, status.
+export function updateTruckInfo(tk) {
+  const d = tk.g.userData && tk.g.userData.data;
+  if (!d) return;
+  if (!tk._driver) {                       // capture the one-off identity from build
+    tk._driver = d.details['Tài xế'];
+    tk._company = d.details['Đơn vị vận tải'];
+    tk._fuel = d.details['Mức nhiên liệu'];
+  }
+  const bd = blockData[tk.assignedBlock];
+  const code = bd ? bd.details['Mã bãi'] : ('#' + (tk.assignedBlock + 1));
+  const blkId = (blocks[tk.assignedBlock] && blocks[tk.assignedBlock].id) || (tk.assignedBlock + 1);
+
+  d.icon = '🚛';
+  d.name = 'Xe Đầu Kéo ' + tk.plate;
+  d.subtitle = tk.isImport ? 'XE CHỞ HÀNG NHẬP (IMPORT)' : 'XE CHỞ HÀNG XUẤT (EXPORT)';
+  d.details = {
+    'Biển số': tk.plate,
+    'Tài xế': tk._driver,
+    'Đơn vị vận tải': tk._company,
+    'Tác nghiệp': tk.isImport ? 'Dỡ container nhập về bãi' : 'Bốc container xuất lên tàu',
+    'Bãi đích': 'BÃI ' + code + ' (Khối số ' + blkId + ')',
+    'Số container': tk.contNo,
+    'Loại container': tk.contType,
+    'Loại hàng hóa': tk.goods,
+    'Khối lượng (gross)': tk.contWeight + ' tấn',
+    'Số seal niêm phong': tk.sealNo,
+    'Tình trạng': truckStatusText(tk),
+    'Mức nhiên liệu': tk._fuel,
+  };
 }
 
 export function initTrucks() {
@@ -162,6 +230,8 @@ export function initTrucks() {
     };
     tk.cargo.visible = isImport;
     assignLanes(tk);                       // stable lane pair by id (spreads load)
+    assignCargo(tk);                       // container/goods identity for this haul
+    updateTruckInfo(tk);                   // build the rich clickable info snapshot
     trucks.push(tk);
     // Staggered entry: every truck starts pending with a random delay, parked
     // invisibly. tryPlacePending() seats it (with full separation) once its

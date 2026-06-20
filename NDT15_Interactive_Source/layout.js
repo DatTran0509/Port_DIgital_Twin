@@ -26,7 +26,7 @@
 export const PARAMS = {
   // Grid shape
   COLS: 6,            // number of block columns (along x)
-  ROWS: 4,            // number of block rows (along z, growing toward the city)
+  ROWS: 5,            // number of block rows (along z, growing toward the city) → 30 yard blocks
 
   // Block footprint
   BLOCK_W: 24,        // block width  (x extent)

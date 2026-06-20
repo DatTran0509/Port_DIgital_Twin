@@ -41,7 +41,7 @@ import { initElectronicBoards, updateBoards } from './boards/electronic-boards.j
 import { initRaycastFollow, updateFollow } from './interaction/raycast-follow.js';
 
 // ── Domain feature barrels ───────────────────────────────────────────────
-import { initYard, updateRtgCranes, updateBlockScreens } from './yard.js';
+import { initYard, updateRtgCranes, updateTransferCranes, updateBlockScreens } from './yard.js';
 import { initShips, vessels, vesselPose, updateBerthScreens, longCranes, pings, aisEls } from './ships.js';
 import { initGate, barriers, updateGateScreens } from './gate.js';
 import { initTrucks, updateTrucks } from './trucks.js';
@@ -176,6 +176,7 @@ function animate() {
   });
 
   updateRtgCranes(dt);
+  updateTransferCranes(dt);
   updateGateScreens();
   updateBerthScreens(el);
   updateBlockScreens();
