@@ -107,9 +107,15 @@ export function initRtgCranes() {
 
 export function updateRtgCranes(dt) {
   rtgCranes.forEach(rc => {
-    if (rc.tTrk) {
+    // Run the cycle while a truck is being served OR the crane is still finishing
+    // its return swing AFTER the truck already left (rc.state !== 0). The truck is
+    // released the instant the spreader lifts clear of it (end of state 9) so it
+    // can drive off immediately — it does NOT wait for the crane to trolley back
+    // to the block / set the container down (states 10–15 run truckless).
+    if (rc.tTrk || rc.state !== 0) {
       if (rc.state === 0) {
         rc.tZ = rc.tTrk.z - 11;
+        rc.imp = rc.tTrk.isImport;          // remember cargo dir so states 10+ need no truck
         rc.state = 1;
         rc.cargo.visible = false;
         rc.cargo.material = rc.tTrk.cargo.material;
@@ -117,7 +123,7 @@ export function updateRtgCranes(dt) {
       else if (rc.state === 1) {
         rc.g.position.z += (rc.tZ - rc.g.position.z) * Math.min(1, dt * 2.5);
         if (Math.abs(rc.g.position.z - rc.tZ) < 0.2) {
-          rc.state = rc.tTrk.isImport ? 6 : 2;
+          rc.state = rc.imp ? 6 : 2;
         }
       }
       // EXPORT ONLY: Pick up from block
@@ -146,7 +152,7 @@ export function updateRtgCranes(dt) {
       }
       // COMMON: Swap cargo with truck
       else if (rc.state === 8) {
-        if (rc.tTrk.isImport) {
+        if (rc.imp) {
           rc.cargo.visible = true;
           rc.tTrk.cargo.visible = false;
         } else {
@@ -155,16 +161,20 @@ export function updateRtgCranes(dt) {
         }
         rc.state = 9;
       }
-      // COMMON: Raise from truck
+      // COMMON: Raise from truck → the moment we clear it, RELEASE the truck so it
+      // drives off without waiting for the crane to return (Req: "đi luôn").
       else if (rc.state === 9) {
         rc.h += dt * 7;
-        if (rc.h >= 15) { rc.h = 15; rc.state = 10; }
+        if (rc.h >= 15) {
+          rc.h = 15; rc.state = 10;
+          if (rc.tTrk) { rc.tTrk.servingRtg = null; rc.tTrk.state = 3.6; rc.tTrk = null; }
+        }
       }
-      // COMMON: Move X to block center
+      // COMMON: Move X to block center (truckless from here on)
       else if (rc.state === 10) {
         rc.trX += (0 - rc.trX) * Math.min(1, dt * 2.5);
         if (Math.abs(rc.trX) < 0.2) {
-          rc.state = rc.tTrk.isImport ? 11 : 15;
+          rc.state = rc.imp ? 11 : 15;
         }
       }
       // IMPORT ONLY: Drop to block
@@ -180,11 +190,9 @@ export function updateRtgCranes(dt) {
         rc.h += dt * 7;
         if (rc.h >= 15) { rc.h = 15; rc.state = 15; }
       }
-      // COMMON: Reset
+      // COMMON: Reset (truck was already released at state 9)
       else if (rc.state === 15) {
         rc.state = 0;
-        rc.tTrk.state = 3.6; // Release truck
-        rc.tTrk = null;
       }
     }
     rc.trolley.position.x = rc.trX;

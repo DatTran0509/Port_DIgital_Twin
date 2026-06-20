@@ -68,6 +68,15 @@ for (const n of NODES) {
   if (n.kind === 'service') SERVICE.push(n.id);
   else if (n.kind === 'gateapron') APRON.set(n.gateLane, n.id);
 }
+
+// Crossing-grid lookup CROSS[col][row] → node id, so the router can, after
+// service, send a truck STRAIGHT AHEAD (−z, toward the quay) to the crossing
+// just in front of its block and turn off there — instead of a 180° U-turn back
+// toward the gate. Crossing nodes carry { col, row } from layout.roadGraph.
+const CROSS = [];
+for (const n of NODES) {
+  if (n.kind === 'crossing') { (CROSS[n.col] || (CROSS[n.col] = []))[n.row] = n.id; }
+}
 // z of the landward apron row (all apron nodes share it) — the on-graph end of
 // each gate lane. Trucks drive the gate↔apron stub OFF-graph, straight in-lane.
 const APRON_Z = NODES[APRON.values().next().value].z;
@@ -262,6 +271,38 @@ function planNearestExit(fromService) {
     if (!best || cost < best.cost) best = { path: p, lane, cost };
   }
   return best;
+}
+
+// Plan an exit that DRIVES STRAIGHT AHEAD first, then loops out — never a 180°
+// U-turn at the service node (Req). The truck arrived heading −z (toward the
+// quay) on its lane, so it keeps going −z to the crossing just in front of its
+// block (fwd), turns 90° onto that cross-road toward a neighbouring column, then
+// routes outbound (+z) up that column to the nearest gate. Two 90° turns instead
+// of one 180°, so it never reverses into the trucks following it down the lane.
+// Falls back to planNearestExit if the forward geometry isn't available.
+function planForwardExit(svcId) {
+  const sv = NODES[svcId];
+  const col = sv.col, row = sv.row;
+  const fwd = CROSS[col] && CROSS[col][row];     // crossing just quay-ward of the block
+  if (fwd === undefined || fwd === null) return planNearestExit(svcId);
+  if (!edgeBetween(svcId, fwd)) return planNearestExit(svcId);
+
+  let best = null;
+  for (const nc of [col - 1, col + 1]) {         // turn onto the cross-road, left or right
+    const nb = CROSS[nc] && CROSS[nc][row];
+    if (nb === undefined || nb === null) continue;
+    if (!edgeBetween(fwd, nb)) continue;
+    for (const lane of OUT_APRON) {
+      // Route outbound from the neighbour crossing, AVOIDING fwd so it can't
+      // double back through the block's own crossing.
+      const tail = pathfind(nb, APRON.get(lane), 'outbound', fwd);
+      if (!tail || tail[0] !== nb) continue;
+      const full = [svcId, fwd].concat(tail);    // svc → fwd (−z) → nb (turn) → … → gate
+      const cost = pathCost(full);
+      if (!best || cost < best.cost) best = { path: full, lane, cost };
+    }
+  }
+  return best || planNearestExit(svcId);
 }
 
 /* ── Movement helpers ─────────────────────────────────────────────────────── */
@@ -597,8 +638,8 @@ export function updateTrucks(dt, barriers, updateGateScreens) {
       }                                       // else hold stationary at the node (Req 5.5)
     } else if (tk.state === 3.5) {           // being serviced; RTG sets state = 3.6
       /* wait */
-    } else if (tk.state === 3.6) {           // released → plan nearest-exit outbound route
-      const exit = planNearestExit(SERVICE[tk.assignedBlock]);
+    } else if (tk.state === 3.6) {           // released → drive straight ahead, then loop out
+      const exit = planForwardExit(SERVICE[tk.assignedBlock]);
       if (!exit) { tk.hold = true; return; }
       tk.hold = false; tk.servingRtg = null;
       tk.outLaneX = exit.lane;               // adopt the nearest gate's lane for the stub drive
