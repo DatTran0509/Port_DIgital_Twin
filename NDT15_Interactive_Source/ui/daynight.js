@@ -3,6 +3,7 @@ import { berthMats } from '../ships.js';
 import { blockMats } from '../yard.js';
 import { screenMat } from '../gate.js';
 import { trucks } from '../trucks.js';
+import { yardLampMats } from '../env/yard-lights.js';
 
 // Wires up the day/night toggle button and applies the initial day-mode state.
 // Behavior-preserving extraction of the day/night block from initUI in ui.js.
@@ -25,6 +26,7 @@ export function initDayNight() {
       if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 1.0;
       if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 0.8;
       portLights.visible = false;
+      yardLampMats.forEach(m => m.emissiveIntensity = 0); // high-mast lamps off in daylight
       M.mark.emissiveIntensity = 0; M.barr.emissiveIntensity = 0; M.radar.emissiveIntensity = 0; M.buoy.emissiveIntensity = 0; M.gate.emissiveIntensity = 0;
       trucks.forEach(tk => { if (tk.hl && tk.hl.mats) tk.hl.mats.forEach(m => m.emissiveIntensity = 0) });
       berthMats.forEach(m => m.color.setScalar(1));
@@ -39,6 +41,7 @@ export function initDayNight() {
       if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 0.3;
       if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 0.3;
       portLights.visible = true;
+      yardLampMats.forEach(m => m.emissiveIntensity = 2.6); // high-mast lamps glow at night
       M.mark.emissiveIntensity = 0.18; M.barr.emissiveIntensity = 0.25; M.radar.emissiveIntensity = 0.7; M.buoy.emissiveIntensity = 0.5; M.gate.emissiveIntensity = 0.8;
       trucks.forEach(tk => { if (tk.hl && tk.hl.mats) tk.hl.mats.forEach(m => m.emissiveIntensity = 2.0) });
       berthMats.forEach(m => m.color.setScalar(5));

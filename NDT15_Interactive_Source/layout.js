@@ -197,6 +197,81 @@ export function apronBounds() {
   };
 }
 
+/* ── SIDE YARDS (lateral logistics expansion) ─────────────────────────────
+ * Two large lateral yards flank the main terminal, derived entirely from the
+ * main apron + the SIDE params so the whole port stays parametric:
+ *   - LEFT  (−x): overflow / long-term CONTAINER STORAGE (a block grid).
+ *   - RIGHT (+x): EQUIPMENT DEPOT (transfer trucks, weighbridge, workshop, …).
+ *
+ * Each side yard sits OUTSIDE the perimeter transfer-crane line: its inner edge
+ * is SIDE.GAP beyond the main apron x-edge, leaving a service-road buffer
+ * between the main port and the side yard. The z-extent is aligned to the main
+ * block rows (front of row 0 → back of the last row) so the three yards read as
+ * one coherent terminal. Each side yard is ~SIDE.COLS·COL_PITCH wide × the main
+ * yard depth — "nearly as large as" the central terminal, on both flanks.
+ */
+export const SIDE = {
+  GAP: 64,          // buffer from main apron x-edge to side-yard inner edge
+  COLS: 5,          // storage columns (LEFT) / depot lanes (RIGHT) per side
+  COL_PITCH: 44,    // per-column pitch (BLOCK_W 24 + 20 m internal road)
+  BLOCK_W: 24,      // storage block width  (matches the main footprint)
+  BLOCK_D: 42,      // storage block depth  (matches the main footprint)
+  ROAD_W: 20,       // internal side-yard road width
+  MARGIN: 7,        // paved-platform margin beyond the outermost block/road edge
+};
+
+// Inner edge x of a side yard (the edge nearest the main port).
+export function sideInnerX(side) {
+  const ab = apronBounds();
+  return side === 'L' ? ab.minX - SIDE.GAP : ab.maxX + SIDE.GAP;
+}
+
+// Outer edge x of a side yard (the edge farthest from the main port).
+export function sideOuterX(side) {
+  const inner = sideInnerX(side);
+  const span = SIDE.COLS * SIDE.COL_PITCH;
+  return side === 'L' ? inner - span : inner + span;
+}
+
+// Column-center x of column `col` (0 = nearest the main port) of a side yard.
+export function sideColX(side, col) {
+  const inner = sideInnerX(side);
+  const off = (col + 0.5) * SIDE.COL_PITCH;
+  return side === 'L' ? inner - off : inner + off;
+}
+
+// The COLS+1 column-boundary x values = internal vertical road centerlines.
+export function sideColBoundsX(side) {
+  const inner = sideInnerX(side);
+  const out = [];
+  for (let k = 0; k <= SIDE.COLS; k++) {
+    out.push(side === 'L' ? inner - k * SIDE.COL_PITCH : inner + k * SIDE.COL_PITCH);
+  }
+  return out;
+}
+
+// Axis-aligned bounds of a side yard's block grid (z aligned to the main rows).
+export function sideYardBounds(side) {
+  const inner = sideInnerX(side), outer = sideOuterX(side);
+  const zFront = blockCenterZ(0) - PARAMS.BLOCK_D / 2;
+  const zBack = blockCenterZ(PARAMS.ROWS - 1) + PARAMS.BLOCK_D / 2;
+  return {
+    minX: Math.min(inner, outer), maxX: Math.max(inner, outer),
+    minZ: zFront, maxZ: zBack,
+  };
+}
+
+// Storage block centers for a side yard (grid of SIDE.COLS × main ROWS).
+export function sideStorageBlocks(side) {
+  const out = [];
+  for (let row = 0; row < PARAMS.ROWS; row++) {
+    for (let col = 0; col < SIDE.COLS; col++) {
+      out.push({ col, row, x: sideColX(side, col), z: blockCenterZ(row) });
+    }
+  }
+  return out;
+}
+
 /* ── VALIDATION ───────────────────────────────────────────────────────────
  * validateLayout() — finiteness/completeness check (Req 3.4).
  *

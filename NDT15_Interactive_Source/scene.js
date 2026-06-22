@@ -32,6 +32,8 @@ import { initEnergy, updateEnergy } from './env/energy.js';
 import { initFlags, updateFlags } from './env/flags.js';
 import { initDrones, updateDrones } from './env/drones.js';
 import { initParticles, updateParticles } from './env/particles.js';
+import { initSideYards } from './env/side-yards.js';
+import { initYardLights } from './env/yard-lights.js';
 
 // ── Road network ─────────────────────────────────────────────────────────
 import { initRoadNetwork } from './roads/road-network.js';
@@ -69,6 +71,13 @@ initFlags();
 initEnergy();
 initDrones();       // was inside setupCoreScene()
 initParticles();    // was inside setupCoreScene()
+
+// Lateral logistics expansion: LEFT container storage + RIGHT equipment depot,
+// plus the high-mast floodlight rig over the main + side yards (night spots are
+// parented under portLights). Built before initUI so the day/night controller
+// can pick up the lamp materials.
+initSideYards();
+initYardLights();
 
 initYard();
 initGate();

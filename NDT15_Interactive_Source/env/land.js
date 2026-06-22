@@ -18,7 +18,10 @@ export function initLand() {
   const landMat = new THREE.MeshStandardMaterial({
     map: diffuse,
     normalMap: normal,
-    color: 0x8899aa, // Tint to blend with lighting
+    // Olive / khaki earthy tint — replaces the cold blue-grey (0x8899aa) that
+    // read as a dark, lifeless slab. Warmer & more saturated so the mainland
+    // looks like real vegetated earth around the concrete terminal.
+    color: 0x8f8a5e,
     roughness: 1.0,
     metalness: 0.0
   });

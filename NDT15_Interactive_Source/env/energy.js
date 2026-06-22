@@ -3,7 +3,7 @@
 // energyObjects updates from animate()). Flags are handled in env/flags.js.
 import * as THREE from 'three';
 import { scene, bx } from '../core.js';
-import { apronBounds } from '../layout.js';
+import { apronBounds, sideOuterX } from '../layout.js';
 
 const windMixers = [];
 const energyObjects = [];
@@ -18,12 +18,12 @@ export function initEnergy() {
   // seaward of the berth line (BERTH_Z = -22) and the vessel anchorage/approach
   // (vessels queue around z ≈ -280..-350), so they overlap none of them.
   const ab = apronBounds();
-  const TURB_CLEAR = 100;                 // gap from apron x-edge (rotor span + margin)
-  const onX = ab.maxX + TURB_CLEAR;       // ≈ 258 — well beyond the apron x-edge
+  const TURB_CLEAR = 70;                          // gap beyond the side-yard outer edge
+  const onX = Math.abs(sideOuterX('R')) + TURB_CLEAR; // ≈ 512 — beyond the lateral yards
   const wtPos = [
-    // 3 trên bờ (phía phải) — landward x-edge, beside the yard, clear of berths
+    // 3 trên bờ (phía phải) — beyond the RIGHT (equipment-depot) side yard
     [onX, 160], [onX, 100], [onX, 40],
-    // 3 trên bờ (phía trái)
+    // 3 trên bờ (phía trái) — beyond the LEFT (container-storage) side yard
     [-onX, 160], [-onX, 100], [-onX, 40],
     // 6 ngoài khơi xa, dàn thành 1 hàng ngang tránh xa khu neo đậu tàu (-300)
     [-250, -520], [-150, -520], [-50, -520], [50, -520], [150, -520], [250, -520]

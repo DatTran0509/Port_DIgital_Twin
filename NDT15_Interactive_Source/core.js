@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { apronBounds, gatePosition, PARAMS } from './layout.js';
+import { apronBounds, gatePosition, sideYardBounds, PARAMS } from './layout.js';
 /* ── RENDERER & SCENE ─────────────────────────────── */
 export const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
@@ -33,8 +33,11 @@ export const mat = (c, r = .85, m = .05, e = 0, ei = 0) => {
   if (e) { mt.emissive = new THREE.Color(e); mt.emissiveIntensity = ei; } return mt;
 };
 export const M = {
-  seabed: mat(0x030810, 1), quay: mat(0x4a5563, .88, .06), apron: mat(0x424f5e, .9),
-  berth: mat(0x384555, .92), yard: mat(0x4b5868, .9), road: mat(0x3b4756, .9),
+  // Ground/concrete tones warmed + lifted from the old near-black slate so the
+  // port reads as real warm concrete/asphalt instead of a dark grey void, and
+  // pairs with the olive earthy land tint (env/land.js).
+  seabed: mat(0x030810, 1), quay: mat(0x5e6366, .88, .06), apron: mat(0x5a5e60, .9),
+  berth: mat(0x46505a, .92), yard: mat(0x595f64, .9), road: mat(0x474b50, .92),
   mark: mat(0xffd070, .5, .2, 0xffd070, .18), crane: mat(0x1a3050, .35, .82),
   craneY: mat(0xd08018, .4, .55, 0x804000, .12), ship1: mat(0x162538, .7, .25),
   ship2: mat(0x1b2c3e, .7, .25), sup: mat(0xbcd8ec, .65, .1), rope: mat(0x4a6070, .8),
@@ -76,21 +79,26 @@ const SHADOW_MARGIN = 12;                   // small clearance beyond the lit ya
 {
   const ap = apronBounds();
   const gate = gatePosition();
+  const sL = sideYardBounds('L');   // lateral storage / depot yards now also need
+  const sR = sideYardBounds('R');   // crisp directional shadows (Req: realism)
   // Region the shadow map must cover: the apron rectangle, extended landward to
-  // include the gate (+z) and seaward to the berth line (−z).
-  const regionMinX = ap.minX, regionMaxX = ap.maxX;
-  const regionMinZ = Math.min(ap.minZ, PARAMS.BERTH_Z); // down to the waterfront
-  const regionMaxZ = Math.max(ap.maxZ, gate.z);         // out to the gate
+  // include the gate (+z), seaward to the berth line (−z), and laterally to the
+  // far edges of both side yards. The mapSize step below auto-scales (up to the
+  // 4096 cap) so widening the frustum still preserves the baseline texel density.
+  const regionMinX = Math.min(ap.minX, sL.minX, sR.minX);
+  const regionMaxX = Math.max(ap.maxX, sL.maxX, sR.maxX);
+  const regionMinZ = Math.min(ap.minZ, PARAMS.BERTH_Z, sL.minZ, sR.minZ); // waterfront
+  const regionMaxZ = Math.max(ap.maxZ, gate.z, sL.maxZ, sR.maxZ);         // out to the gate
   // Origin-centered symmetric half-extent: farthest edge from 0 on either axis.
   const H = Math.max(
     Math.abs(regionMinX), Math.abs(regionMaxX),
     Math.abs(regionMinZ), Math.abs(regionMaxZ)
-  ) + SHADOW_MARGIN; // defaults → max(158,158,22,309)+12 = 321 (frustum width 642)
+  ) + SHADOW_MARGIN; // defaults → max(442,442,22,420)+12 = 454 (frustum width 908)
 
   // Smallest power-of-two mapSize that preserves density ≥ baseline, capped.
-  const minMapSize = SHADOW_BASELINE_DENSITY * 2 * H;            // ≈ 1461 by default
-  const mapSize = Math.min(SHADOW_MAP_CAP, Math.pow(2, Math.ceil(Math.log2(minMapSize)))); // → 2048
-  // Resulting density = mapSize / (2H) ≈ 2048 / 642 ≈ 3.19 texels/unit (≥ 2.276 baseline).
+  const minMapSize = SHADOW_BASELINE_DENSITY * 2 * H;            // ≈ 2067 by default
+  const mapSize = Math.min(SHADOW_MAP_CAP, Math.pow(2, Math.ceil(Math.log2(minMapSize)))); // → 4096
+  // Resulting density = mapSize / (2H) ≈ 4096 / 908 ≈ 4.51 texels/unit (≥ 2.276 baseline).
 
   sun.shadow.mapSize.set(mapSize, mapSize);
   ['left', 'bottom'].forEach(k => sun.shadow.camera[k] = -H);
