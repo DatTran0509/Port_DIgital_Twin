@@ -30,7 +30,7 @@ export function initUI(orbit, berthMeshes, containerMeshes, gateg, radarG, buoyM
     hs.onclick = () => selectFeat(i, orbit, berthMeshes, containerMeshes, gateg, radarG, buoyMeshes, shorePowerGroup, scanPlane);
     hsLayer.appendChild(hs);
 
-    hsEls.push({ el: hs, pos: new THREE.Vector3(...getPreset(f.id).cp) });
+    hsEls.push({ el: hs, pos: new THREE.Vector3(...getPreset(f.id).ft) });
   });
 
   document.getElementById('pcls').onclick = () => {

@@ -21,6 +21,7 @@
 
 import * as THREE from 'three';
 import { scene, mat, bx } from '../core.js';
+import { gatePosition } from '../layout.js';
 
 /* ── Module state (mirrors the original main.js module-level vars) ────────── */
 const boardCanvases = [];
@@ -44,12 +45,17 @@ export function initElectronicBoards() {
     boardMats.push(new THREE.MeshBasicMaterial({ map: tex }));
   }
 
-  // Board 1: Gate
+  // Board 1: Gate — gắn NGAY TRÊN ĐỈNH cổng (vòm cổng cao ~world y=22), căn giữa
+  // cổng, KHÔNG còn trụ chống xuống đường chen làn xe. Bám theo gatePosition().
+  const gp = gatePosition();
   const gBoard = new THREE.Group();
-  gBoard.position.set(0, 32, 85);
-  bx(gBoard, 52, 10, 2, mat(0x111111, 0.5, 0.5), 0, 0, 0); // Frame
+  gBoard.position.set(gp.x, 22, gp.z); // đáy khung ~ đỉnh vòm cổng, cùng z với cổng
+  bx(gBoard, 52, 10, 2, mat(0x111111, 0.5, 0.5), 0, 0, 0); // Frame: đáy local 0 → tâm local 5
+  // Hai giá đỡ ngắn cắm xuống vòm cổng (đỉnh giá = đáy khung local 0).
+  bx(gBoard, 2.5, 4, 2.5, mat(0x223344, 0.5, 0.5), -20, -4, 0);
+  bx(gBoard, 2.5, 4, 2.5, mat(0x223344, 0.5, 0.5), 20, -4, 0);
   const scr1 = new THREE.Mesh(new THREE.PlaneGeometry(50, 8), boardMats[0]);
-  scr1.position.set(0, 5, 1.1);
+  scr1.position.set(0, 5, 1.1); // căn giữa khung đen (tâm khung = local 5)
   gBoard.add(scr1);
   const scr1b = new THREE.Mesh(new THREE.PlaneGeometry(50, 8), boardMats[0]);
   scr1b.position.set(0, 5, -1.1);
@@ -57,18 +63,19 @@ export function initElectronicBoards() {
   gBoard.add(scr1b);
   scene.add(gBoard);
 
-  // Board 2: Port
+  // Board 2: Port — biển lớn phía bến tàu. Nâng cao hẳn lên để KHÔNG bị các cẩu
+  // STS / chồng container che khuất (trước đây y=65 bị tụt xuống, không thấy gì).
   const pBoard = new THREE.Group();
-  // Move exactly on top of the port cranes but slightly lower so it fits in camera
-  pBoard.position.set(0, 65, -8);
+  pBoard.position.set(0, 100, -8);
 
-  // Pillars reach from y=25 to y=65 (pBoard is at 65). Local y=-40, height 40.
-  bx(pBoard, 2.5, 40, 2.5, mat(0x223344, 0.5, 0.5), -30, -40, 0); // Legs
-  bx(pBoard, 2.5, 40, 2.5, mat(0x223344, 0.5, 0.5), 30, -40, 0);
+  // Chân trụ: đỉnh dừng đúng ĐÁY khung (local 0) — KHÔNG nhô lên trên khung nữa —
+  // và kéo thẳng xuống mặt quay (pBoard y=100 → local -98 ≈ world y 2).
+  bx(pBoard, 2.5, 98, 2.5, mat(0x223344, 0.5, 0.5), -30, -98, 0); // Legs
+  bx(pBoard, 2.5, 98, 2.5, mat(0x223344, 0.5, 0.5), 30, -98, 0);
 
-  bx(pBoard, 62, 12, 2, mat(0x111111, 0.5, 0.5), 0, 0, 0); // Frame starts at y=0, height 12.
+  bx(pBoard, 62, 12, 2, mat(0x111111, 0.5, 0.5), 0, 0, 0); // Frame: đáy local 0 → tâm local 6
   const scr2 = new THREE.Mesh(new THREE.PlaneGeometry(60, 10), boardMats[1]);
-  scr2.position.set(0, 6, 1.1); // Center of the frame is at y=6
+  scr2.position.set(0, 6, 1.1); // căn giữa khung đen (tâm khung = local 6)
   pBoard.add(scr2);
   const scr2b = new THREE.Mesh(new THREE.PlaneGeometry(60, 10), boardMats[1]);
   scr2b.position.set(0, 6, -1.1);
@@ -117,16 +124,16 @@ export function updateBoards(el) {
       if (i === 0) {
         // Gate Board
         ctx.font = '900 90px ' + fStr;
-        ctx.fillText('CỔNG CHÍNH CẢNG NDT15', 1024, 150);
+        ctx.fillText('CỔNG CHÍNH CẢNG NDT15', 1024, 145);
       } else {
         // Port Board
         ctx.font = '900 100px ' + fStr;
-        ctx.fillText('CẢNG HÀNG HẢI QUỐC TẾ NDT15', 1024, 150);
+        ctx.fillText('CẢNG HÀNG HẢI QUỐC TẾ NDT15', 1024, 145);
       }
 
       ctx.fillStyle = '#15D8A4';
       ctx.font = '900 80px ' + fStr;
-      ctx.fillText(timeStr + ' · HOẠT ĐỘNG BÌNH THƯỜNG', 1024, 270);
+      ctx.fillText(timeStr + ' · HOẠT ĐỘNG BÌNH THƯỜNG', 1024, 255);
     }
 
     boardTexs[i].needsUpdate = true;

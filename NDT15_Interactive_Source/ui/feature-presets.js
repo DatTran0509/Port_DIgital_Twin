@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { camera } from '../core.js';
 import { setCallouts, setScanActive, hsEls } from './overlays.js';
 import { renderFeatureCharts } from './charts.js';
+import { openTheater } from './process-theater.js';
 import {
   PARAMS, apronBounds, berthX, blockCenterX, blockCenterZ, gatePosition,
 } from '../layout.js';
@@ -140,13 +141,13 @@ function buildPresets() {
   // ── Compose presets from frame(), one viewing direction per feature ──────
   // dir = {x,y,z}: x/z choose the ground vantage, y the elevation. With these
   // ratios the camera looks down ~35–42°, elevated, as required.
-  const p01 = frame(berths, { x: 0, y: 0.7, z: -1 }, 1.3, 16);   // from the water (−z)
-  const p02 = frame(yard, { x: 0.7, y: 0.9, z: 0.8 }, 1.3, 22);  // elevated corner (+x,+z)
-  const p03 = frame(gateB, { x: 0, y: 0.75, z: 1 }, 1.3, 20);    // city side (+z)
-  const p05 = frame(radar, { x: 0.8, y: 0.7, z: -0.5 }, 1.3, 40);// waterfront-east vantage
-  const p08 = frame(water, { x: 0, y: 0.6, z: -1 }, 1.35, 14);   // broad, from the water
-  const p09 = frame(energy, { x: 0, y: 0.75, z: 1 }, 1.3, 26);   // city side (+z)
-  const p10 = frame(full, { x: 0, y: 0.9, z: -1 }, 1.35, 60);    // from water, high, landward
+  const p01 = frame(berths, { x: 0, y: 0.7, z: -1 }, 0.85, 16);   // from the water (−z)
+  const p02 = frame(yard, { x: 0.7, y: 0.9, z: 0.8 }, 0.85, 22);  // elevated corner (+x,+z)
+  const p03 = frame(gateB, { x: 0, y: 0.75, z: 1 }, 1.3, 20);    // city side (+z) — KEEP
+  const p05 = frame(radar, { x: 0.8, y: 0.7, z: -0.5 }, 0.85, 40);// waterfront-east vantage
+  const p08 = frame(water, { x: 0, y: 0.6, z: -1 }, 0.9, 14);   // broad, from the water
+  const p09 = frame(energy, { x: 0, y: 0.75, z: 1 }, 0.85, 26);   // city side (+z)
+  const p10 = frame(full, { x: 0, y: 0.9, z: -1 }, 1.0, 60);    // from water, high, landward
 
   return {
     '01': { cp: p01.cp, fp: p01.fp, ft: p01.ft },
@@ -257,25 +258,13 @@ export function selectFeat(i, orbit, berthMeshes, containerMeshes, gateg, radarG
 
     const btnAutoPlay = document.getElementById('btn-autoplay');
     if (btnAutoPlay) {
-      btnAutoPlay.onclick = () => {
-        if (isAutoPlaying) {
-          stopAutoPlay();
-        } else {
-          isAutoPlaying = true;
-          btnAutoPlay.classList.add('playing');
-          btnAutoPlay.textContent = '⏹ Dừng Auto-play';
-          let currentStep = 0;
-          activateStep(0);
-          autoPlayTimer = setInterval(() => {
-            currentStep++;
-            if (currentStep >= stpEls.length) {
-              stopAutoPlay();
-              return;
-            }
-            activateStep(currentStep);
-          }, 3000); // 3 seconds per step
-        }
-      };
+      // The auto-play button now launches the cinematic Digital-Twin Theater:
+      // a full-screen, step-by-step simulation of how this feature actually
+      // works (animated visuals + live KPIs + the digital-twin loop). The old
+      // inline side-panel step narration remains available via step clicks.
+      btnAutoPlay.classList.remove('playing');
+      btnAutoPlay.textContent = '▶ Mô phỏng Digital Twin';
+      btnAutoPlay.onclick = () => openTheater(f);
     }
   }
 

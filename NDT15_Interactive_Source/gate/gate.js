@@ -15,7 +15,7 @@
  * ────────────────────────────────────────────────────────────────────────── */
 
 import * as THREE from 'three';
-import { scene, M, bx, cy, mat, portLights } from '../core.js';
+import { scene, M, bx, mat, portLights } from '../core.js';
 import { screenMat, updateGateScreens } from './gate-screens.js';
 import { gatePosition } from '../layout.js';
 
@@ -59,9 +59,6 @@ export function initGate() {
     for (let j = 0; j < uvs1.count; j++) { uvs1.setX(j, (i * 0.25) + uvs1.getX(j) * 0.25); }
     const uvs2 = scM2.geometry.attributes.uv;
     for (let j = 0; j < uvs2.count; j++) { uvs2.setX(j, (i * 0.25) + uvs2.getX(j) * 0.25); }
-
-    cy(gateg, .3, 15, M.crane, x - 7, 11, isOutbound ? 3.5 : -3.5);
-    bx(gateg, 3.5, 3.5, 2.0, M.radar, x - 7, 14, isOutbound ? 3.5 : -3.5);
 
     const bgrp = new THREE.Group();
     bgrp.position.set(x + 7.5, 4, bZ);
