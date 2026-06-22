@@ -137,7 +137,7 @@ const containerMeshes = [];
 export { containerMeshes };
 
 function buildContainers() {
-  const cBuckets = [[], [], [], []];
+  const cBuckets = cMats.map(() => []);
 
   blocks.forEach((b, bi) => {
     const rng = makeRng(b.id * 97 + 13);
@@ -159,7 +159,7 @@ function buildContainers() {
           const x = x0 + col * (cW + gX);
           const z = z0 + row * (cD + gZ);
           const y = YARD_Y + cH / 2 + t * (cH + gY);
-          const bucket = (bi + col + row + t) % 4;
+          const bucket = (bi + col + row + t) % cMats.length;
           cBuckets[bucket].push([x, y, z]);
           count++;
         }

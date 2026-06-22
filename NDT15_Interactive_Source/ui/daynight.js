@@ -11,20 +11,22 @@ export function initDayNight() {
   let isDay = true;
   document.getElementById('dn-toggle').textContent = '☾ Night Mode';
   document.body.classList.add('day-mode');
+  // Day baseline kept a touch dimmer to avoid the over-bright / glary look.
   renderer.toneMappingExposure = 0.6;
+  if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 0.6;
 
   document.getElementById('dn-toggle').onclick = (e) => {
     isDay = !isDay;
     e.target.textContent = isDay ? '☾ Night Mode' : '☀ Day Mode';
     document.body.classList.toggle('day-mode', isDay);
     if (isDay) {
-      renderer.toneMappingExposure = 0.8;
-      ambLight.color.setHex(0xffffff); ambLight.intensity = 0.8;
-      hemiLight.color.setHex(0xffffff); hemiLight.groundColor.setHex(0x444444); hemiLight.intensity = 0.8;
-      sun.intensity = 1.8;
-      camLight.intensity = 1.0;
+      renderer.toneMappingExposure = 0.7;
+      ambLight.color.setHex(0xffffff); ambLight.intensity = 0.65;
+      hemiLight.color.setHex(0xffffff); hemiLight.groundColor.setHex(0x444444); hemiLight.intensity = 0.65;
+      sun.intensity = 1.7;
+      camLight.intensity = 0.85;
       if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 1.0;
-      if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 0.8;
+      if (scene.environmentIntensity !== undefined) scene.environmentIntensity = 0.6;
       portLights.visible = false;
       yardLampMats.forEach(m => m.emissiveIntensity = 0); // high-mast lamps off in daylight
       M.mark.emissiveIntensity = 0; M.barr.emissiveIntensity = 0; M.radar.emissiveIntensity = 0; M.buoy.emissiveIntensity = 0; M.gate.emissiveIntensity = 0;

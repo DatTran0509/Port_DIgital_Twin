@@ -78,7 +78,7 @@ function buildTowerCrane(x, z, idx, homeAngle, R, swing, side, mastH, phase) {
 
   bx(slew, 3, 1.6, 3.4, M.craneY, R, -1, 0);                     // trolley (rides with the slew)
   const spreader = bx(slew, 4, 0.8, 7, M.crane, R, HOOK_HI, 0);
-  const cargo = bx(slew, 3.4, 2.6, 6.4, cMats[idx % 4], R, HOOK_HI - 1.6, 0);
+  const cargo = bx(slew, 3.4, 2.6, 6.4, cMats[idx % cMats.length], R, HOOK_HI - 1.6, 0);
   cargo.visible = false;
   const rope = cable(slew, new THREE.Vector3(R, 1, 0), new THREE.Vector3(R, HOOK_HI, 0), M.rope);
 

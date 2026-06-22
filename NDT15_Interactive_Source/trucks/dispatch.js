@@ -218,7 +218,7 @@ export function updateTruckInfo(tk) {
 export function initTrucks() {
   for (let i = 0; i < 10; i++) {
     const isImport = Math.random() > 0.5;
-    const v = buildTruck(cMats[i % 4]);
+    const v = buildTruck(cMats[i % cMats.length]);
     const tk = {
       id: _nextId++, g: v.g, cargo: v.cargo, hl: v.hl, plate: v.plate,
       state: 0, path: null, pathIdx: 0, edgeId: -1, s: 0,

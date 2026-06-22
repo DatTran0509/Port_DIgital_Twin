@@ -84,7 +84,7 @@ function rng(seed) {
 
 function buildStorage(side) {
   const blocks = sideStorageBlocks(side);
-  const buckets = [[], [], [], []];
+  const buckets = cMats.map(() => []);
   blocks.forEach((blk, bi) => {
     const r = rng((bi + 1) * 131 + 7);
     // Long-term storage → taller, more uniform stacks than the live main yard.
@@ -97,7 +97,7 @@ function buildStorage(side) {
       let h = rr < 0.06 ? 0 : Math.max(2, Math.round(maxTiers * (0.55 + r() * 0.45)));
       if (h > maxTiers) h = maxTiers;
       for (let t = 0; t < h; t++) {
-        buckets[(bi + c + row + t) % 4].push([x0 + c * (cW + gX), PLATFORM_TOP + cH / 2 + t * (cH + gY), z0 + row * (cD + gZ)]);
+        buckets[(bi + c + row + t) % cMats.length].push([x0 + c * (cW + gX), PLATFORM_TOP + cH / 2 + t * (cH + gY), z0 + row * (cD + gZ)]);
         count++;
       }
     }
@@ -160,7 +160,7 @@ function buildReeferRack(b) {
   bx(g, len, 0.5, 0.6, matFrame, 0, 9, -2.4); bx(g, len, 0.5, 0.6, matFrame, 0, 9, 2.4);
   for (let i = 0; i < n; i++) {                                 // reefer boxes, 2 high
     const cxp = -len / 2 + step / 2 + i * step;
-    for (let t = 0; t < 2; t++) bx(g, step - 1.6, 2.5, 5, cMats[(i + t) % 4], cxp, 0.2 + t * 2.65, 0);
+    for (let t = 0; t < 2; t++) bx(g, step - 1.6, 2.5, 5, cMats[(i + t) % cMats.length], cxp, 0.2 + t * 2.65, 0);
     bx(g, 0.9, 1.3, 0.4, matPanel, cxp, 3.0, 2.7);              // power panel
   }
   bx(g, len, 0.2, 1.4, matCat, 0, 5.8, 3.2);                    // service catwalk

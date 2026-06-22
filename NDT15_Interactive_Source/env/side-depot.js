@@ -277,7 +277,7 @@ function emptyStacks(x0, z0) {
     const sx = s * 5;
     const tiers = 4 + (s % 3);
     for (let t = 0; t < tiers; t++) {
-      bx(g, 3.4, 2.5, 8, cMats[(s + t) % 4], sx, t * 2.55, 0);
+      bx(g, 3.4, 2.5, 8, cMats[(s + t) % cMats.length], sx, t * 2.55, 0);
     }
   }
   clickable(g, '📦', 'Kho Container Rỗng', 'EMPTY CONTAINER DEPOT', {
@@ -308,8 +308,8 @@ export function buildDepot(b) {
   // Zone 2 — Parked shuttle trucks (two rows)
   for (let i = 0; i < 6; i++) {
     const withCargo = i % 3 !== 0;
-    parkedTruck(b.minX + 16 + i * 13, zAt(0.34), 0, i, withCargo ? cMats[i % 4] : null);
-    parkedTruck(b.minX + 16 + i * 13, zAt(0.46), Math.PI, i + 3, i % 2 ? cMats[(i + 1) % 4] : null);
+    parkedTruck(b.minX + 16 + i * 13, zAt(0.34), 0, i, withCargo ? cMats[i % cMats.length] : null);
+    parkedTruck(b.minX + 16 + i * 13, zAt(0.46), Math.PI, i + 3, i % 2 ? cMats[(i + 1) % cMats.length] : null);
   }
 
   // Zone 3 — Chassis park + reach stackers + empty stacks

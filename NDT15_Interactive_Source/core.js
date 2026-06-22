@@ -44,10 +44,60 @@ export const M = {
   gate: mat(0xf0f5ff, .4, .1, 0x34E0F0, 0), barr: mat(0xc02828, .5, .4, 0x500000, .25),
   barr2: mat(0xdddddd, .5, .3), radar: mat(0x1a3355, .3, .9, 0x0a2040, .7),
   buoy: mat(0xd89020, .5, .4, 0x402800, .5),
-  cE: mat(0x105a38, .9, .2), cW: mat(0x144080, .9, .2), cL: mat(0x402070, .9, .2), cR: mat(0x804d0b, .9, .2),
 };
 
-export const cMats = [M.cE, M.cW, M.cL, M.cR];
+/* ── CONTAINER LIVERY ──────────────────────────────────────────────────────
+ * Full real-world container palette — muted / slightly faded matte painted
+ * steel (NOT the old over-saturated 4 colours). Includes white (reefer) and
+ * red as requested, plus blue, oxide/rust, green, grey, tan, orange. Each
+ * material also carries a SHARED procedural bumpMap (ribbed-steel corrugation +
+ * faint weather streaks) so the boxes read as real, slightly weathered metal
+ * instead of flat plastic. One texture is reused by every bucket (cheap).
+ *
+ * The instancing pipeline keys off cMats.length, so adding colours just adds a
+ * few constant draw calls — every consumer buckets by `% cMats.length`.
+ */
+const CONTAINER_COLORS = [
+  0x1f5290, // marine blue (deep)
+  0xab3328, // container red
+  0x7a3a2a, // oxide / rust brown-red
+  0x2f6b41, // green
+  0xb9bdb3, // reefer off-white (toned so it doesn't blow out)
+  0x5f6469, // weathered steel grey
+  0x9c7d3f, // tan / khaki-yellow
+  0xb85f27, // orange
+];
+
+function makeContainerTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#808080'; x.fillRect(0, 0, 128, 128);     // neutral height
+  const ribs = 16, w = 128 / ribs;                          // vertical corrugations
+  for (let i = 0; i < ribs; i++) {
+    const g = x.createLinearGradient(i * w, 0, (i + 1) * w, 0);
+    g.addColorStop(0, '#6c6c6c'); g.addColorStop(0.5, '#9c9c9c'); g.addColorStop(1, '#6c6c6c');
+    x.fillStyle = g; x.fillRect(i * w, 0, w, 128);
+  }
+  x.fillStyle = '#565656'; x.fillRect(0, 0, 128, 7); x.fillRect(0, 121, 128, 7);  // top/bottom rails
+  for (let i = 0; i < 26; i++) {                             // faint weather streaks
+    x.globalAlpha = 0.06 + Math.random() * 0.12;
+    x.fillStyle = Math.random() < 0.5 ? '#494949' : '#bcbcbc';
+    x.fillRect(Math.random() * 128, 7 + Math.random() * 50, 0.5 + Math.random() * 1.4, 50 + Math.random() * 55);
+  }
+  x.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+const containerTex = makeContainerTex();
+export const cMats = CONTAINER_COLORS.map((col) => {
+  const m = mat(col, 0.92, 0.0);   // fully matte painted steel
+  m.bumpMap = containerTex;
+  m.bumpScale = 0.4;
+  m.envMapIntensity = 0.3;         // damp the bright-sky reflection → no glare / no wash-out
+  return m;
+});
 
 /* ── LIGHTS ───────────────────────────────────────── */
 export const ambLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambLight);
