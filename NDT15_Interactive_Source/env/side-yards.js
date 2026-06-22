@@ -202,6 +202,50 @@ function buildForklift(x, z, ry, idx) {
   scene.add(g);
 }
 
+/* ── Storage RMG gantry (straddles a block; static, fills the vertical space) ── */
+function buildStorageRMG(x, z, idx) {
+  const g = new THREE.Group(); g.position.set(x, PLATFORM_TOP, z); scene.add(g);
+  const span = 30, H = 18;
+  for (const sx of [-span / 2, span / 2]) { bx(g, 1.4, H, 1.4, matFrame, sx, 0, -20); bx(g, 1.4, H, 1.4, matFrame, sx, 0, 20); }
+  bx(g, span + 2, 1.6, 4, matFrame, 0, H, -20); bx(g, span + 2, 1.6, 4, matFrame, 0, H, 20);
+  bx(g, 2.6, 1.0, 44, matFrame, 0, H + 1, 0);                  // runway rail
+  const trolley = bx(g, 3, 1.4, 4, matCat, 0, H - 1.3, 0);
+  bx(g, 3.2, 0.5, 6, mat(0x23282d, 0.4, 0.5), 0, H - 8, 0);    // spreader
+  void trolley;
+  g.userData = {
+    isClickable: true, objType: 'storage',
+    data: {
+      icon: '🏗️', name: 'Cẩu Giàn Bãi Tồn RMG-' + String(idx + 1).padStart(2, '0'), subtitle: 'RAIL-MOUNTED GANTRY — BÃI LƯU TRỮ',
+      details: { 'Loại': 'Cẩu giàn ray (RMG)', 'Nhịp': span + ' m', 'Sức nâng': '40 tấn (xếp 6 tầng)', 'Chức năng': 'Xếp dỡ & dồn bãi container tồn kho', 'Trạng thái': '⚙️ Sẵn sàng' },
+    },
+  };
+}
+
+/* ── Small storage-yard admin office ───────────────────────────────────────── */
+function buildStorageOffice(x, z) {
+  const g = new THREE.Group(); g.position.set(x, PLATFORM_TOP, z); scene.add(g);
+  bx(g, 16, 4, 10, mat(0xc3ccc4, 0.7, 0.05), 0, 0, 0);
+  bx(g, 16.3, 1.5, 10.3, mat(0x182a30, 0.15, 0.7, 0x081418, 0.25), 0, 1.4, 0);
+  bx(g, 16, 0.6, 10, mat(0x55655d, 0.8, 0.1), 0, 4, 0);
+  bx(g, 5, 0.4, 3, mat(0x15b88f, 0.4, 0.3), 0, 2.6, -5.2);
+  g.userData = {
+    isClickable: true, objType: 'storage',
+    data: { icon: '🏢', name: 'Văn Phòng Bãi Tồn Kho', subtitle: 'QUẢN LÝ LƯU TRỮ DÀI HẠN', details: { 'Chức năng': 'Quản lý xuất/nhập bãi tồn, hải quan giám sát', 'Kết nối': 'Đồng bộ TOS cảng chính', 'Trạng thái': '🟢 Đang trực' } },
+  };
+}
+
+/* ── Fill the LEFT storage yard with equipment so it reads as operating ─────── */
+function buildLeftYardEquip(b) {
+  const blocks = sideStorageBlocks('L');
+  // RMG gantries straddling a few representative storage blocks.
+  [blocks[7], blocks[12], blocks[17], blocks[2]].forEach((blk, i) => { if (blk) buildStorageRMG(blk.x, blk.z, i); });
+  // Extra forklifts working the aisles.
+  buildForklift(sideColBoundsX('L')[2], b.minZ + (b.maxZ - b.minZ) * 0.55, 1.6, 2);
+  buildForklift(sideColBoundsX('L')[4], b.minZ + (b.maxZ - b.minZ) * 0.35, -1.2, 3);
+  // Admin office on the inner-front platform margin.
+  buildStorageOffice(b.maxX - 2, b.minZ - 2);
+}
+
 /* ── Entrance pylon sign (so each yard reads as a named facility) ───────────── */
 function buildSignpost(side, b) {
   const g = new THREE.Group();
@@ -236,6 +280,7 @@ export function initSideYards() {
   buildReeferRack(L);
   buildForklift(sideColBoundsX('L')[1], L.minZ + (L.maxZ - L.minZ) * 0.42, 0.4, 0);
   buildForklift(sideColBoundsX('L')[3], L.minZ + (L.maxZ - L.minZ) * 0.7, -2.4, 1);
+  buildLeftYardEquip(L);
 
   buildSignpost('L', L);
   buildSignpost('R', R);

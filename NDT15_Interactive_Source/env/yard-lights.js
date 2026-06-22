@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { scene, mat, portLights, dummy } from '../core.js';
 import {
-  SIDE, apronBounds, blockCenterZ, sideYardBounds,
+  SIDE, apronBounds, blockCenterZ, sideYardBounds, railFlank, landwardZones,
 } from '../layout.js';
 
 const FOOT_TOP = 5;            // footing top (flush with apron / platform top)
@@ -55,9 +55,22 @@ function mastPositions() {
     const innerX = (side === 'L' ? sb.maxX : sb.minX) + (side === 'L' ? 3 : -3);
     const outerX = (side === 'L' ? sb.minX : sb.maxX) + (side === 'L' ? -3 : 3);
     [sb.minZ + (sb.maxZ - sb.minZ) * 0.25, sb.maxZ - (sb.maxZ - sb.minZ) * 0.25].forEach((z) => {
-      add(innerX, z, true);     // inner masts light the yard
-      add(outerX, z, false);    // outer masts: structure + emissive only
+      add(innerX, z, true);     // every mast is lit at night (no ambient fill used)
+      add(outerX, z, true);
     });
+  }
+
+  // ── Landward facilities: rail terminals + green hub + automated terminal ───
+  // High masts so these areas are lit by real lamps at night too (not ambient).
+  for (const side of ['L', 'R']) {
+    const rf = railFlank(side);
+    const ex = side === 'L' ? rf.outerX - 14 : rf.outerX + 14;   // outside the band (clear of train/RMG)
+    [rf.minZ + (rf.maxZ - rf.minZ) * 0.3, rf.maxZ - (rf.maxZ - rf.minZ) * 0.3].forEach((z) => add(ex, z, true));
+  }
+  const lz = landwardZones();
+  for (const zone of [lz.green, lz.auto]) {
+    add(zone.minX + 12, zone.front + 24, true);
+    add(zone.maxX - 12, zone.back - 24, true);
   }
 
   return out;

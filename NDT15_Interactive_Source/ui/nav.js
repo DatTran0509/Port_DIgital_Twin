@@ -3,6 +3,7 @@ import { hsEls, setCallouts, setScanActive } from './overlays.js';
 import { selectFeat, resetHL, getPreset } from './feature-presets.js';
 import { hideObjectInfo } from './object-info.js';
 import { initDayNight } from './daynight.js';
+import { initControlTower } from './control-tower.js';
 
 const FEATS = window.FEATS;
 const nav = document.getElementById('fnav');
@@ -10,6 +11,10 @@ const hsLayer = document.getElementById('hslayer');
 const panel = document.getElementById('panel');
 
 export function initUI(orbit, berthMeshes, containerMeshes, gateg, radarG, buoyMeshes, shorePowerGroup, scanPlane) {
+  // Hide the floating feature-position hotspot markers — the bottom nav bar is
+  // enough (selecting a feature still works from the nav buttons).
+  if (hsLayer) hsLayer.style.display = 'none';
+
   const objInfoClose = document.getElementById('obj-info-close');
   if (objInfoClose) objInfoClose.onclick = () => {
     hideObjectInfo();
@@ -44,6 +49,7 @@ export function initUI(orbit, berthMeshes, containerMeshes, gateg, radarG, buoyM
   };
 
   initDayNight();
+  initControlTower();
 
   let uiHidden = false;
   document.getElementById('ui-toggle').onclick = (e) => {

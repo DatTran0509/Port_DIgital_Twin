@@ -4,7 +4,7 @@
 // rotating radar, bobbing buoys, and the moving scan plane live here too.
 import * as THREE from 'three';
 import { scene, M, mat, bx, cy, sp } from '../core.js';
-import { apronBounds, horizRoadZ } from '../layout.js';
+import { apronBounds, horizRoadZ, landwardStrip } from '../layout.js';
 
 let radarDisk, sweepMesh, radarG;
 let shorePowerGroup;
@@ -128,18 +128,17 @@ export function initBuildings() {
   {
     const whMat = new THREE.MeshStandardMaterial({ color: 0xc8d8e8, roughness: 0.5, metalness: 0.1 });
     const rfMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: 0.8 });
-    const WH_HALF_D = 14;       // half the warehouse roof depth (28 m)
-    const WH_CLEAR = 12;        // clearance from apron back edge to warehouse front
-    const whZ = ab.maxZ + WH_CLEAR + WH_HALF_D;   // ≈ 316 (landward of the yard)
-    const whX = 140;            // x-offset; clears the gate footprint (|x| ≤ 50)
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x60645f, roughness: 0.95 });
+    // Relocated FAR OUTBOARD on the landward strip so they no longer sit over the
+    // central truck/AGV lanes or the side rail flanks (user: move buildings back).
+    const whZ = landwardStrip().midZ;             // ≈ 575 (landward strip)
+    const whX = 360;                              // outboard of green hub / automated terminal
     [{ x: -whX, z: whZ }, { x: whX, z: whZ }].forEach(({ x, z }) => {
+      bx(scene, 112, 5, 36, padMat, x, 0, z);     // raised pad (land → apron height)
       bx(scene, 100, 14, 26, whMat, x, 5, z);
       bx(scene, 102, 2, 28, rfMat, x, 19, z);
       [-40, 40].forEach(ox => cy(scene, 0.3, 10, M.crane, x + ox, 5, z - 15));
     });
-    // Warehouse tarmac apron beneath the buildings — kept landward of the back
-    // road edge so it no longer overlaps the expanded yard/roads.
-    bx(scene, 420, 0.3, 50, new THREE.MeshStandardMaterial({ color: 0x0f1720, roughness: 0.95 }), 0, 4.5, whZ);
   }
 
   return { radarG, radarDisk, sweepMesh, buoyMeshes, shorePowerGroup, scanPlane };

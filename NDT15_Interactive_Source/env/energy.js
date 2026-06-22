@@ -3,7 +3,7 @@
 // energyObjects updates from animate()). Flags are handled in env/flags.js.
 import * as THREE from 'three';
 import { scene, bx } from '../core.js';
-import { apronBounds, sideOuterX } from '../layout.js';
+import { apronBounds, sideOuterX, landwardStrip } from '../layout.js';
 
 const windMixers = [];
 const energyObjects = [];
@@ -18,8 +18,8 @@ export function initEnergy() {
   // seaward of the berth line (BERTH_Z = -22) and the vessel anchorage/approach
   // (vessels queue around z ≈ -280..-350), so they overlap none of them.
   const ab = apronBounds();
-  const TURB_CLEAR = 70;                          // gap beyond the side-yard outer edge
-  const onX = Math.abs(sideOuterX('R')) + TURB_CLEAR; // ≈ 512 — beyond the lateral yards
+  const TURB_CLEAR = 130;                         // gap beyond the side yards (clears the rail flanks)
+  const onX = Math.abs(sideOuterX('R')) + TURB_CLEAR; // ≈ 572 — beyond the side rail terminals
   const wtPos = [
     // 3 trên bờ (phía phải) — beyond the RIGHT (equipment-depot) side yard
     [onX, 160], [onX, 100], [onX, 40],
@@ -69,10 +69,8 @@ export function initEnergy() {
   // whX/whZ mirror env/buildings.js (apron-derived) so each array footprint
   // (x∈±35, z∈±10 about its center) lies within the warehouse roof footprint.
   const spMat = new THREE.MeshStandardMaterial({ color: 0x051030, roughness: 0.1, metalness: 0.8 });
-  const WH_HALF_D = 14;                       // half warehouse roof depth (28 m)
-  const WH_CLEAR = 12;                        // clearance from apron back edge
-  const whZ = ab.maxZ + WH_CLEAR + WH_HALF_D; // ≈ 316 (matches buildings.js)
-  const whX = 140;                            // matches buildings.js
+  const whZ = landwardStrip().midZ;           // ≈ 575 (matches the relocated warehouses)
+  const whX = 360;                            // matches buildings.js
   [[-whX, whZ], [whX, whZ]].forEach(([x, z], wIdx) => {
     const sGroup = new THREE.Group(); sGroup.position.set(x, 21.5, z);
     for (let px = -35; px <= 35; px += 15) {

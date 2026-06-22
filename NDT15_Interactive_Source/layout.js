@@ -272,6 +272,52 @@ export function sideStorageBlocks(side) {
   return out;
 }
 
+/* ── LANDWARD EXPANSION STRIP (behind the gate, +z) ───────────────────────
+ * A next-generation logistics belt landward of the gate hosts the new
+ * investor-facing facilities, derived from the gate position so it always sits
+ * behind the port and scales with the layout:
+ *   - GREEN energy hub (left), on-dock RAIL terminal (centre), AUTOMATED
+ *     terminal (right) — see env/rail-terminal.js / green-hub.js / automation.js.
+ */
+export function landwardStrip() {
+  const front = gatePosition().z + 70;   // start well behind the gate plaza
+  const depth = 170;
+  return { front, back: front + depth, midZ: front + depth / 2, depth };
+}
+
+// x sub-ranges of the landward facilities. The CENTRE band (x∈[-90,90]) is left
+// open as the truck GATE-ACCESS spine (so nothing blocks trucks entering the
+// port) — env/connections.js fills it with the access road + inland gate.
+export function landwardZones() {
+  const s = landwardStrip();
+  return {
+    green: { minX: -280, maxX: -110, ...s },     // left  : green energy hub
+    gate: { minX: -90, maxX: 90, ...s },         // centre: truck access spine (kept clear)
+    auto: { minX: 110, maxX: 280, ...s },        // right : automated terminal
+    // outer landward (|x| ≳ 310) is left free for the relocated warehouses,
+    // and the side flanks (railFlank) carry the on-dock rail terminals.
+  };
+}
+
+// On-dock RAIL band running ALONGSIDE each side yard (outer flank), so the rail
+// gantries can transfer containers directly between train and the adjacent yard
+// (real on-dock rail). Returns the band + the yard edge it interchanges with and
+// the landward gate position where the line joins the national network.
+export function railFlank(side) {
+  const sb = sideYardBounds(side);
+  const W = 54, gap = 10;
+  const yardEdge = side === 'L' ? sb.minX : sb.maxX;     // outer edge of the side yard
+  const inner = side === 'L' ? yardEdge - gap : yardEdge + gap;
+  const outer = side === 'L' ? inner - W : inner + W;
+  return {
+    side, yardEdge,
+    minX: Math.min(inner, outer), maxX: Math.max(inner, outer),
+    innerX: inner, outerX: outer,
+    minZ: sb.minZ, maxZ: sb.maxZ,
+    gateZ: sb.maxZ + 120,                                // landward end → rail gate
+  };
+}
+
 /* ── VALIDATION ───────────────────────────────────────────────────────────
  * validateLayout() — finiteness/completeness check (Req 3.4).
  *

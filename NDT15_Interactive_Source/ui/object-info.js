@@ -97,6 +97,8 @@ export function updateActivePanels(el) {
     if (tk) { updateTruckInfo(tk); refreshDetails(panel, activeObjData); }
   } else if (activeObjType === 'transfercrane' && activeObjData) {
     refreshDetails(panel, activeObjData);   // status mutated by the crane update loop
+  } else if ((activeObjType === 'rail' || activeObjType === 'auto') && activeObjData) {
+    refreshDetails(panel, activeObjData);   // train / RMG / AGV live status (mutated each frame)
   }
 }
 

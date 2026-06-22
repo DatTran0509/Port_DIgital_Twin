@@ -34,6 +34,10 @@ import { initDrones, updateDrones } from './env/drones.js';
 import { initParticles, updateParticles } from './env/particles.js';
 import { initSideYards } from './env/side-yards.js';
 import { initYardLights } from './env/yard-lights.js';
+import { initRailTerminal, updateRail } from './env/rail-terminal.js';
+import { initGreenHub } from './env/green-hub.js';
+import { initAutomation, updateAutomation } from './env/automation.js';
+import { initConnections } from './env/connections.js';
 
 // ── Road network ─────────────────────────────────────────────────────────
 import { initRoadNetwork } from './roads/road-network.js';
@@ -78,6 +82,14 @@ initParticles();    // was inside setupCoreScene()
 // can pick up the lamp materials.
 initSideYards();
 initYardLights();
+
+// Landward expansion belt (investor-facing next-gen facilities):
+//   green energy hub · on-dock rail terminal · automated terminal.
+initGreenHub();
+initRailTerminal();
+initAutomation();
+// Visible integration links tying every landward facility back to the port.
+initConnections();
 
 initYard();
 initGate();
@@ -206,6 +218,10 @@ function animate() {
 
   // Wind turbines (mixers + manual rotors)
   updateEnergy(dt);
+
+  // Landward expansion animations: creeping train + RMG trolleys, AGV loop + ASC.
+  updateRail(dt);
+  updateAutomation(dt);
 
   // Flag cloth wave
   updateFlags(el);
