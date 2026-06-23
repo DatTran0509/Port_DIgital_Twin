@@ -34,7 +34,7 @@ const LAYERS = [
   { n: 10, c: '#fa5252', icon: '📐', en: 'Computer-Aided Design', vi: 'Thiết kế Hỗ trợ Máy tính (CAD)', st: 'on', use: 'Bố trí bãi & thiết bị tham số hoá — đổi một thông số là toàn cảng tự tái sắp xếp (layout engine).' },
   { n: 11, c: '#f03e3e', icon: '🗺️', en: 'Geographic Information System', vi: 'Thông tin Địa lý (GIS)', st: 'part', use: 'Toạ độ địa lý, lớp bản đồ nền, ranh giới vùng nước & đất cảng.' },
   { n: 12, c: '#e03131', icon: '🧱', en: 'Land Information System', vi: 'Thông tin Đất đai', st: 'part', use: 'Quản lý quỹ đất, phân lô bãi, hợp đồng thuê khu hậu cần & bãi tồn.' },
-  { n: 13, c: '#c92a2a', icon: '🕳️', en: 'Underground Infrastructure', vi: 'Hạ tầng Ngầm', st: 'plan', use: 'Đường ống nhiên liệu, cáp điện/quang ngầm, thoát nước — số hoá để bảo trì & thi công an toàn.' },
+  { n: 13, c: '#c92a2a', icon: '🕳️', en: 'Underground Infrastructure', vi: 'Hạ tầng Ngầm', st: 'on', use: 'ĐÃ XÂY tầng hầm kỹ thuật: utility tunnel (điện/nước/cáp), trạm bơm thoát nước, trạm biến áp, data vault, tuyến hầm logistics nối 3 cảng, bãi đỗ & kho ngầm — vào bằng cổng xe hoặc thang máy.' },
   { n: 14, c: '#a51111', icon: '💧', en: 'Groundwater Information System', vi: 'Nguồn nước Ngầm', st: 'plan', use: 'Quan trắc mực nước ngầm & xâm nhập mặn quanh cảng bằng cảm biến IoT.' },
   { n: 15, c: '#7a0e0e', icon: '⛏️', en: 'Mineral Resource Management', vi: 'Tài nguyên Khoáng sản', st: 'plan', use: 'Ngoài phạm vi vận hành cảng — dành cho mở rộng quản lý tài nguyên cấp vùng.' },
 ];
@@ -141,7 +141,7 @@ function buildPanel() {
       </div>
     </div>
 
-    <div class="ct-sec">15 lớp Bản sao số NDT &nbsp;<span style="color:#15D8A4">8 áp dụng</span> · <span style="color:#f8b23c">4 một phần</span> · <span style="color:#9fb4d2">3 kế hoạch</span></div>
+    <div class="ct-sec">15 lớp Bản sao số NDT &nbsp;<span style="color:#15D8A4">9 áp dụng</span> · <span style="color:#f8b23c">4 một phần</span> · <span style="color:#9fb4d2">2 kế hoạch</span></div>
     <div class="ct-sub" style="margin-top:-4px">Mỗi lớp ánh xạ một hệ thống số của cảng — bấm vật thể tương ứng trong mô hình 3D để xem trực tiếp.</div>
     <div class="ct-layers">
       ${LAYERS.map((L) => `<div class="ct-layer"><div class="bar" style="background:${L.c}"></div><div class="bd"><div class="hd"><span class="no">${String(L.n).padStart(2, '0')}</span><span style="font-size:15px">${L.icon}</span><span class="nm">${L.vi}</span><span class="lst lst-${L.st}">${L.st === 'on' ? 'ĐANG ÁP DỤNG' : L.st === 'part' ? 'MỘT PHẦN' : 'KẾ HOẠCH'}</span></div><div class="en">${L.en}</div><div class="use">${L.use}</div></div></div>`).join('')}
