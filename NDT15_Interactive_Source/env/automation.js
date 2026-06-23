@@ -18,9 +18,13 @@ const matAgvY = mat(0xe2ad24, 0.5, 0.35);
 const matSensor = mat(0x0f2e28, 0.4, 0.3, 0x21d18a, 0.8);
 const matSteel = mat(0x8b9197, 0.5, 0.6);
 
+const matWhite = mat(0xffffff, 0.8);
+const matPad2 = mat(0x55585e, 0.95, 0.03);
+
 const agvs = [];
 const ascs = [];
 const shuttles = [];   // AGVs that run the lane connecting the automated yard ↔ main port
+const tractors = [];   // terminal tractors on the 2-lane access road (in + out)
 let loop = null;       // { cx, cz, ra, rb }
 let t = 0;
 
@@ -101,6 +105,56 @@ function buildShuttle(laneX, zNear, zFar, i) {
   shuttles.push({ g, zNear, zFar, ph: i * 1.6 });
 }
 
+// ── ONE-WAY tractor LOOP (two lanes, but all vehicles circulate the same way →
+//    no head-on) + a delivery bay that off-loads containers into the main yard ──
+let troad = null, dropGantry = null;
+function buildTractorRoad(b) {
+  const cx = 123, zP = apronBounds().maxZ - 6, zT = b.front + 70;     // port end / terminal end
+  const cz = (zP + zT) / 2, rz = (zT - zP) / 2, rx = 9;
+  troad = { cx, cz, rx, rz };
+  // Embankment grounding the loop across the valley to the main port.
+  bx(scene, 32, Y, (b.front - apronBounds().maxZ) + 14, matPad2, cx, 0, (apronBounds().maxZ + b.front) / 2);
+  // Two-lane carriageway slab (vehicles run a one-way oval on it) + centre divider.
+  bx(scene, (rx + 6) * 2, 0.42, rz * 2 + 12, matLane, cx, Y - 0.4, cz);
+  for (let z = zP + 4; z < zT; z += 9) bx(scene, 0.5, 0.5, 4, matWhite, cx, Y + 0.05, z, false);
+  buildDropGantry(cx, zP + 8);
+}
+
+function buildTractor(i) {
+  const g = new THREE.Group(); g.position.set(troad.inX, Y, troad.zP); scene.add(g);
+  bx(g, 3.2, 2.4, 3.2, matAgv, 0, 1.0, 3.2);                          // cab (front toward +z)
+  bx(g, 2.9, 0.9, 0.3, matSensor, 0, 2.4, 4.75);                      // windshield/sensor
+  bx(g, 3.4, 0.7, 9, mat(0x262b30, 0.6, 0.4), 0, 0.7, -0.6);          // chassis/trailer bed
+  const box = bx(g, 3.3, 2.6, 6.4, cMats[i % cMats.length], 0, 1.4, -1.4);
+  box.visible = false;
+  for (const wx of [-1.5, 1.5]) for (const wz of [-3, 0.5, 4]) { const w = cy(g, 0.7, 0.5, M.crane, wx, 0.0, wz); w.rotation.z = Math.PI / 2; }
+  g.userData = {
+    isClickable: true, objType: 'auto',
+    data: {
+      icon: '🚛', name: 'Xe Đầu Kéo Nội Bộ ' + (i + 1), subtitle: 'TRUNG CHUYỂN BẾN TỰ ĐỘNG ↔ BÃI CHÍNH',
+      details: { 'Loại': 'Đầu kéo + rơ-moóc 40ft', 'Tuyến': '2 làn (vào/ra) — không đối đầu', 'Nhiệm vụ': 'Nhận container từ cẩu ASC chở về bãi chính', 'Trạng thái': '🟢 Đang luân chuyển' },
+    },
+  };
+  tractors.push({ g, box, a: (i / 4) * Math.PI * 2 });
+}
+
+function buildDropGantry(x, z) {
+  const g = new THREE.Group(); g.position.set(x, Y, z); scene.add(g);
+  const H = 14;
+  for (const lx of [-13, 13]) for (const lz of [-6, 6]) bx(g, 1.2, H, 1.2, matSteel, lx, 0, lz);
+  bx(g, 28, 1.4, 14, matSteel, 0, H, 0);                              // top beam frame
+  const trolley = bx(g, 2.6, 1.2, 3.6, matAgvY, 0, H - 1.2, 0);
+  const spreader = bx(g, 3.2, 0.5, 6.2, matAgv, 0, H - 6, 0);
+  const cargo = bx(g, 3.2, 2.5, 6, cMats[2], 0, H - 7.6, 0); cargo.visible = false;
+  // Delivery stack — in the loop MEDIAN (between the two lanes), clear of the road.
+  for (let s = 0; s < 4; s++) for (let tt = 0; tt < 2 + (s % 2); tt++) bx(g, 3.2, 2.5, 6, cMats[(s + tt) % cMats.length], 0, 1.3 + tt * 2.6, 14 + s * 7, false);
+  g.userData = {
+    isClickable: true, objType: 'auto',
+    data: { icon: '🏗️', name: 'Cẩu Giao Hàng Vào Bãi Chính', subtitle: 'BỐC CONTAINER TỪ XE → XẾP VÀO BÃI', details: { 'Chức năng': 'Hạ container từ xe đầu kéo & xếp vào bãi cảng chính', 'Cơ chế': 'Cẩu giàn tại điểm giao, đồng bộ với xe trung chuyển', 'Trạng thái': '🟢 Đang giao hàng' } },
+  };
+  dropGantry = { spreader, cargo, hi: H - 6, lo: H - 11 };
+}
+
 export function initAutomation() {
   const b = landwardZones().auto;
   const cx = (b.minX + b.maxX) / 2;
@@ -121,9 +175,9 @@ export function initAutomation() {
   for (let i = 0; i < 4; i++) buildAGV(i);
 
   // Connecting shuttle AGVs — run the lane (x≈140) joining this automated yard
-  // to the MAIN PORT back, ferrying containers both ways (its real purpose).
-  const laneX = 140, zNear = apronBounds().maxZ - 2, zFar = b.front + 8;
-  for (let i = 0; i < 3; i++) buildShuttle(laneX, zNear, zFar, i);
+  // Terminal tractors on a ONE-WAY loop delivering containers into the main yard.
+  buildTractorRoad(b);
+  for (let i = 0; i < 4; i++) buildTractor(i);
 
   // Zone sign / control kiosk.
   const sg = new THREE.Group(); sg.position.set(b.maxX - 16, Y, b.front - 6); scene.add(sg);
@@ -158,9 +212,37 @@ export function updateAutomation(dt) {
     r.trolley.position.z = z; r.spreader.position.z = z;
     r.spreader.position.y = (17 - 7) + Math.sin(t * 1.3 + i) * 2.2;
   });
-  // Connecting shuttles ferry along the lane between this yard and the main port.
+  // Connecting shuttles (kept for any legacy instances) ferry along their lane.
   shuttles.forEach((s) => {
     const p = (Math.sin(t * 0.5 + s.ph) + 1) / 2;
     s.g.position.z = s.zNear + (s.zFar - s.zNear) * p;
   });
+
+  // Terminal tractors circulate the ONE-WAY oval (so they never meet head-on):
+  // loaded by the ASC at the terminal (top), carry DOWN, and drop at the yard
+  // bay (bottom) where the gantry off-loads them into the main yard.
+  if (troad) {
+    const TWO = Math.PI * 2, n = tractors.length, minGap = (TWO / n) * 0.5;
+    tractors.forEach((tk) => {
+      // Collision avoidance (car-following): find the gap to the nearest tractor
+      // AHEAD on the one-way loop and STOP if it's closing in (no rear-ending).
+      let gap = TWO;
+      tractors.forEach((o) => { if (o !== tk) { const d = ((o.a - tk.a) % TWO + TWO) % TWO; if (d > 1e-3 && d < gap) gap = d; } });
+      let spd = 0.12;
+      if (Math.sin(tk.a) < -0.7) spd = 0.04;          // slow through the delivery bay
+      if (gap < minGap) spd = 0;                       // hold to keep a safe gap
+      tk.a = (tk.a + spd * dt) % TWO;
+      const a = tk.a, vx = -troad.rx * Math.sin(a), vz = troad.rz * Math.cos(a);
+      tk.g.position.set(troad.cx + troad.rx * Math.cos(a), Y, troad.cz + troad.rz * Math.sin(a));
+      tk.g.rotation.y = Math.atan2(vx, vz);
+      tk.box.visible = vz < 0 && Math.sin(a) > -0.82;  // carrying down; dropped at the bay
+    });
+  }
+  // Delivery-bay gantry off-loading containers into the main yard.
+  if (dropGantry) {
+    const c = (t * 0.45) % 1, k = c < 0.5 ? c / 0.5 : (1 - c) / 0.5;
+    dropGantry.spreader.position.y = dropGantry.hi - k * (dropGantry.hi - dropGantry.lo);
+    dropGantry.cargo.position.y = dropGantry.spreader.position.y - 1.6;
+    dropGantry.cargo.visible = c > 0.2 && c < 0.8;
+  }
 }

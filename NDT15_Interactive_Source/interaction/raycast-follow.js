@@ -52,6 +52,16 @@ export function initRaycastFollow() {
         curr = curr.parent;
       }
       if (clickedData) {
+        // Action objects (e.g. the underground gate / elevators) just show their
+        // info and fire their action — they must NOT engage the follow-camera,
+        // otherwise it fights the descent fly and re-focuses the clicked object.
+        if (clickedData.uaction) {
+          activeFollowTarget = null;
+          isFollowing = false;
+          showObjectInfo(clickedData.data, clickedData.objType);
+          window.dispatchEvent(new Event(clickedData.uaction));
+          return;
+        }
         activeFollowTarget = clickedGroup;
         isFollowing = true;
 

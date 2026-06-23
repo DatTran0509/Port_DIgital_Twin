@@ -38,6 +38,7 @@ import { initRailTerminal, updateRail } from './env/rail-terminal.js';
 import { initGreenHub } from './env/green-hub.js';
 import { initAutomation, updateAutomation } from './env/automation.js';
 import { initConnections } from './env/connections.js';
+import { initUnderground, updateUnderground } from './env/underground.js';
 
 // ── Road network ─────────────────────────────────────────────────────────
 import { initRoadNetwork } from './roads/road-network.js';
@@ -90,6 +91,8 @@ initRailTerminal();
 initAutomation();
 // Visible integration links tying every landward facility back to the port.
 initConnections();
+// Underground infrastructure level (NDT layer 13) — hidden until you descend.
+initUnderground();
 
 initYard();
 initGate();
@@ -222,6 +225,8 @@ function animate() {
   // Landward expansion animations: creeping train + RMG trolleys, AGV loop + ASC.
   updateRail(dt);
   updateAutomation(dt);
+  // Underground level activity + in-basement camera confinement (when descended).
+  updateUnderground(dt);
 
   // Flag cloth wave
   updateFlags(el);
