@@ -447,6 +447,35 @@ export function updateUnderground(dt) {
   }
 }
 
+/* ── CHRONOS flood hook (Resilience scenario) ──────────────────────────────
+ * Raises a translucent flood plane inside the basement and tints the power /
+ * pump infrastructure red as the substation vault is inundated. level ∈ [0,1].
+ * The basement need not be visible — the tint persists so descending mid-storm
+ * shows the damage. */
+let floodPlane = null, floodLevel = 0;
+const _floodOrig = [];
+export function setFlood(level) {
+  floodLevel = Math.max(0, Math.min(1, level || 0));
+  if (!group) return;
+  if (!floodPlane) {
+    floodPlane = bx(group, BX * 2, 0.6, ZMAX - ZMIN, mat(0x2f6fb0, 0.3, 0.5, 0x18406a, 0.4), 0, FY, MIDZ, false);
+    floodPlane.material.transparent = true; floodPlane.material.opacity = 0.62;
+    // remember the materials we recolour so we can restore them
+    [matSteel, matLed, matWater].forEach(m => _floodOrig.push({ m, c: m.color.getHex(), e: m.emissive ? m.emissive.getHex() : 0 }));
+  }
+  const h = floodLevel * (CY - FY - 4);
+  floodPlane.scale.y = Math.max(0.01, h / 0.6);
+  floodPlane.position.y = FY + h / 2;
+  floodPlane.visible = floodLevel > 0.02;
+  // tint the substation / pump steel toward danger red as it floods
+  const dng = floodLevel;
+  matSteel.color.setRGB(0.55 + dng * 0.35, 0.57 - dng * 0.4, 0.6 - dng * 0.45);
+  matLed.emissive.setRGB(dng, 0.82 * (1 - dng), 0.54 * (1 - dng));
+  if (floodLevel < 0.02 && _floodOrig.length) {
+    _floodOrig.forEach(o => { o.m.color.setHex(o.c); if (o.m.emissive) o.m.emissive.setHex(o.e); });
+  }
+}
+
 function buildToggle() {
   const btn = document.createElement('button');
   btn.className = 'top-btn'; btn.id = 'ug-btn'; btn.textContent = '⬇ Tầng Ngầm';

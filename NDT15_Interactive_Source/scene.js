@@ -40,6 +40,9 @@ import { initAutomation, updateAutomation } from './env/automation.js';
 import { initConnections } from './env/connections.js';
 import { initUnderground, updateUnderground } from './env/underground.js';
 
+// ── CHRONOS temporal engine (time-machine · fork · resilience · copilot) ───
+import { initChronos, beginFrame, endFrame, applyPast, record } from './sim/chronos.js';
+
 // ── Road network ─────────────────────────────────────────────────────────
 import { initRoadNetwork } from './roads/road-network.js';
 
@@ -105,10 +108,24 @@ initUI(orbit, null, null, null, radarG, buoyMeshes, shorePowerGroup, scanPlane);
 // Register pointer / click-to-follow / follow-camera listeners (was inline in main.js).
 initRaycastFollow();
 
+// CHRONOS: build the time-machine bar, scenario picker, copilot + ghost/glassbox
+// layers. Must run AFTER every subsystem exists (snapshot tracks their movers).
+initChronos();
+
 // === ANIMATION LOOP (order mirrors the original main.js animate()) ========
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), .05), el = clock.getElapsedTime();
+  // CHRONOS owns time now: simClock.time/dt replace raw clock time so the whole
+  // scene can be paused / rewound / fast-forwarded. `past` = reviewing recorded
+  // history → integrators are skipped and their transforms replayed from the
+  // snapshot buffer instead (they can't run backwards). With no interaction the
+  // clock stays live at 1×, so this behaves exactly as before.
+  const dtWall = Math.min(clock.getDelta(), .05);
+  // Reality runs every frame at the live edge (el = now, dt = wall dt). `past`
+  // means the user is REVIEWING recorded history → after the live update runs we
+  // overlay the recorded mover transforms (applyPast, just before render).
+  const { el, dt, past } = beginFrame(dtWall);
+  const cdt = Math.max(0, dt);
 
   // Follow target (formerly the inline follow block)
   updateFollow();
@@ -138,7 +155,7 @@ function animate() {
     let diff = ps.ry - v.g.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    v.g.rotation.y += diff * Math.min(1, dt * 1.5);
+    v.g.rotation.y += diff * Math.min(1, cdt * 1.5);
 
     if (v.mode === 'cycle') {
       const p = ((((el - v.t0) % v.dur) + v.dur) % v.dur) / v.dur;
@@ -199,8 +216,7 @@ function animate() {
     lc.rope.scale.y = (44 - sh) / 10;
   });
 
-  updateRtgCranes(dt);
-  updateTransferCranes(dt);
+  updateRtgCranes(dt); updateTransferCranes(dt);
   updateGateScreens();
   updateBerthScreens(el);
   updateBlockScreens();
@@ -210,26 +226,36 @@ function animate() {
   // Drones
   updateDrones(dt, el);
 
-  // CO2 particles + sensor buoys (emit first, then buoys, as in main.js)
-  updateParticles(dt);
-  updateBuoys(dt);
+  // CO2 particles + sensor buoys (emit first, then buoys, as in main.js).
+  // Clamped dt so age-based emitters never run with a negative step on rewind.
+  updateParticles(cdt);
+  updateBuoys(cdt);
 
   // Scan plane sweep (active state from the UI module)
   updateScan(el, isScanActive());
-
-  updateOverlays(aisEls);
 
   // Wind turbines (mixers + manual rotors)
   updateEnergy(dt);
 
   // Landward expansion animations: creeping train + RMG trolleys, AGV loop + ASC.
-  updateRail(dt);
-  updateAutomation(dt);
+  updateRail(dt); updateAutomation(dt);
   // Underground level activity + in-basement camera confinement (when descended).
   updateUnderground(dt);
 
   // Flag cloth wave
   updateFlags(el);
+
+  // Reality is now fully updated for this frame → record it. If the user is
+  // reviewing history, overlay the recorded transforms for the cursor time
+  // (movers + vessels) so the SCENE shows the past while reality kept running.
+  record();
+  if (past) applyPast();
+  // Drive the Chronos UI, ghost layer and any active fork overlay (incl. flood
+  // buoyancy that lifts vessels with the rising water).
+  endFrame(dt);
+  // AIS labels project from the FINAL vessel positions (after replay overlay AND
+  // flood buoyancy), so they stay pinned to the ships in every mode.
+  updateOverlays(aisEls);
 
   renderer.render(scene, camera);
 }
