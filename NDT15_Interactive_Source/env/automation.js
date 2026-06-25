@@ -155,6 +155,10 @@ function buildDropGantry(x, z) {
   dropGantry = { spreader, cargo, hi: H - 6, lo: H - 11 };
 }
 
+// Live AGV / shuttle registries for the Copilot locator ("xe trung chuyển").
+export function getAgvs() { return agvs; }
+export function getShuttles() { return shuttles; }
+
 export function initAutomation() {
   const b = landwardZones().auto;
   const cx = (b.minX + b.maxX) / 2;

@@ -211,6 +211,9 @@ function buildFlank(side) {
 
 export function initRailTerminal() { buildFlank('L'); buildFlank('R'); }
 
+// Live train registry for the Copilot locator ("tàu hỏa nào đang…").
+export function getTrains() { return trains; }
+
 /* ── Per-frame ─────────────────────────────────────────────────────────────── */
 function statusText(state, side) {
   switch (state) {

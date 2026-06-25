@@ -408,6 +408,21 @@ function exit() {
   const b = document.getElementById('ug-btn'); if (b) b.textContent = '⬇ Tầng Ngầm';
 }
 
+// Whether the camera is currently confined inside the basement.
+export function isUnderground() { return open; }
+
+// Surface WITHOUT the return-to-saved fly: lifts the basement confinement and
+// hides the level so a caller (Copilot) can immediately fly to a SURFACE target
+// instead of the camera staying clamped under the basement ceiling.
+export function leaveUnderground() {
+  if (!open) return;
+  open = false;
+  if (savedOrbit.max) { orbit.minDistance = savedOrbit.min; orbit.maxDistance = savedOrbit.max; orbit.maxPolarAngle = savedOrbit.pol; }
+  if (anim) { cancelAnimationFrame(anim); anim = null; }
+  if (group) group.visible = false;
+  const b = document.getElementById('ug-btn'); if (b) b.textContent = '⬇ Tầng Ngầm';
+}
+
 // Per-frame: basement activity + confine the camera so it can't fly outside.
 export function updateUnderground(dt) {
   ugT += dt;

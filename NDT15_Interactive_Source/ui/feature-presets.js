@@ -184,6 +184,10 @@ function stopAutoPlay() {
 export function selectFeat(i, orbit, berthMeshes, containerMeshes, gateg, radarG, buoyMeshes, shorePowerGroup, scanPlane) {
   const f = FEATS[i];
   const preset = getPreset(f.id);
+  // Release any object the follow-camera is locked onto, otherwise the per-frame
+  // follow keeps yanking the camera back to that object and fights this preset
+  // fly (the "dí mãi vào object" bug). Also clears the highlight + info panel.
+  window.dispatchEvent(new Event('clear-follow-target'));
   document.querySelectorAll('.fn').forEach((b, j) => b.classList.toggle('on', j === i));
   hsEls.forEach((h, j) => h.el.classList.toggle('active', j === i));
   document.body.classList.add('has-active-feat');

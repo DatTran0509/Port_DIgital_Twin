@@ -16,9 +16,11 @@
 import { simClock } from './timeline.js';
 import * as snapshot from './snapshot.js';
 import { initGhost, updateGhost, ghostBerthForecast } from './ghost.js';
+import { updateHighlight } from './highlight.js';
+import { initCinematic, updateCinematic } from './cinematic.js';
 import { initGlassbox } from './glassbox.js';
 import { SCENARIOS, startFork, stopFork, isForkActive, update as updateFork } from './scenario.js';
-import { parse, EXAMPLES } from './copilot.js';
+import { parse, EXAMPLES, setNotifier } from './copilot.js';
 
 let bar = null, scrub = null, timeEl = null, playBtn = null, modeEl = null;
 let dragging = false;
@@ -64,6 +66,7 @@ export function initChronos() {
   injectCSS();
   initGhost();
   initGlassbox();
+  initCinematic();
   buildBar();
   buildPicker();
   buildCopilot();
@@ -87,6 +90,10 @@ export function endFrame(dt) {
   updateGhost(fut, simClock.futureTime());
   // Scenario overlay (chart/markers/effects/glassbox)
   updateFork(Math.max(0, dt) || 0.016);
+  // Object highlight (pulse + follow moving entities + projected label)
+  updateHighlight(Math.max(0, dt) || 0.016);
+  // Cinematic guided-tour camera (orbit + dolly zoom around each feature)
+  updateCinematic(Math.max(0, dt) || 0.016);
   // UI readouts
   if (!dragging) refreshBar();
 }
@@ -182,10 +189,10 @@ function togglePicker() {
 function buildCopilot() {
   const box = document.createElement('div'); box.id = 'chronos-copilot';
   box.innerHTML = `
-    <div class="cc-h">🤖 NDT Copilot <button id="cc-min">—</button></div>
+    <div class="cc-h">🤖 Trợ lý ảo Cảng NDT15 <button id="cc-min">—</button></div>
     <div class="cc-log" id="cc-log"></div>
-    <div class="cc-chips">${EXAMPLES.slice(0, 4).map(e => `<button class="cc-chip">${e}</button>`).join('')}</div>
-    <div class="cc-in"><input id="cc-input" placeholder="Hỏi: nếu cẩu B3 hỏng?…"><button id="cc-send">➤</button></div>`;
+    <div class="cc-chips">${EXAMPLES.slice(0, 6).map(e => `<button class="cc-chip">${e}</button>`).join('')}</div>
+    <div class="cc-in"><input id="cc-input" placeholder="Hỏi bất cứ điều gì về cảng…"><button id="cc-send">➤</button></div>`;
   document.body.appendChild(box);
   copilotLog = box.querySelector('#cc-log');
   const input = box.querySelector('#cc-input');
@@ -194,7 +201,8 @@ function buildCopilot() {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
   box.querySelectorAll('.cc-chip').forEach(c => c.onclick = () => ask(c.textContent));
   box.querySelector('#cc-min').onclick = () => box.classList.toggle('min');
-  log('bot', 'Xin chào! Hỏi tôi một tình huống — tôi sẽ tua thời gian, phân nhánh thực tại và bay camera để trả lời bằng hành động.');
+  setNotifier(msg => log('bot', msg));     // lets the copilot narrate the guided tour over time
+  log('bot', 'Xin chào! Tôi là Trợ lý ảo Cảng NDT15 — hỏi tôi mọi thứ: giới thiệu, giải thích vật thể, chạy luồng vận hành, dẫn đi tham quan, tua thời gian hay mô phỏng sự cố. Thử bấm một gợi ý bên dưới 👇');
 }
 function ask(text) { log('user', text); const r = parse(text); if (r) setTimeout(() => log('bot', r), 250); refreshBar(); }
 function log(who, msg) {
@@ -310,7 +318,7 @@ function injectCSS() {
     background:rgba(176,124,255,.16);color:#fff}
   #cc-min{background:none;border:none;color:#cfe;cursor:pointer;font-size:14px}
   .cc-log{max-height:200px;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px}
-  .cc-msg{font-size:11.5px;line-height:1.45;padding:7px 10px;border-radius:10px;max-width:90%}
+  .cc-msg{font-size:11.5px;line-height:1.45;padding:7px 10px;border-radius:10px;max-width:92%;white-space:pre-line}
   .cc-msg.user{align-self:flex-end;background:rgba(52,224,240,.16);color:#dff}
   .cc-msg.bot{align-self:flex-start;background:rgba(255,255,255,.06);color:#cfe}
   .cc-chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px}
@@ -326,6 +334,8 @@ function injectCSS() {
   .scn-mk{position:absolute;transform:translate(-50%,-140%);background:rgba(11,18,32,.9);
     border:1.5px solid #ff5468;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:700;color:#fff;
     white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .hl-label{position:absolute;transform:translate(-50%,-150%);background:rgba(11,18,32,.92);border:1.5px solid #34E0F0;
+    border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.5)}
   .gb-label{position:absolute;transform:translate(-50%,-130%);background:rgba(20,14,8,.92);
     border:1px solid #ffd070;border-radius:8px;padding:4px 9px;font-size:11px;color:#ffe;white-space:nowrap}
   .gb-step{display:inline-block;background:#ffd070;color:#221;border-radius:50%;width:16px;height:16px;
