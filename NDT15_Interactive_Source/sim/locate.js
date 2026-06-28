@@ -164,6 +164,24 @@ function answerTrucks() {
   return { handled: true, text: `🚛 Đang có ${active.length} xe đầu kéo hoạt động trong cảng${serving.length ? `, ${serving.length} xe đang bốc/dỡ tại bãi` : ''}. ${tk ? `Ví dụ xe ${tk.plate} (bãi số ${tk.assignedBlock + 1}) ${truckState(tk)} — đã focus.` : ''}` };
 }
 
+function answerContainerTotals() {
+  let cont = 0, teu = 0, cap = 0, reefer = 0, dg = 0;
+  for (const d of blockData) {
+    if (!d || !d.details) continue;
+    const m = (d.details['Đang chứa'] || '').match(/([\d.]+)\s*cont.*?([\d.]+)\s*TEU/);
+    if (m) { cont += parseInt(m[1].replace(/\./g, ''), 10) || 0; teu += parseInt(m[2].replace(/\./g, ''), 10) || 0; }
+    const cm = (d.details['Sức chứa thiết kế'] || '').match(/([\d.]+)/);
+    if (cm) cap += parseInt(cm[1].replace(/\./g, ''), 10) || 0;
+    const cargo = d.details['Loại hàng hóa'] || '';
+    if (/lạnh|reefer/i.test(cargo)) reefer++;
+    if (/nguy hiểm|imdg|dg/i.test(cargo)) dg++;
+  }
+  const occ = cap ? Math.round(cont / cap * 100) : 0;
+  focusAt(0, 14, 160, 160);
+  const vn = n => n.toLocaleString('vi-VN');
+  return { handled: true, text: `📦 Tồn bãi hiện tại: khoảng ${vn(cont)} container (~${vn(teu)} TEU) trên ${blockData.length} bãi, tổng sức chứa ~${vn(cap)} cont → tỷ lệ lấp đầy ~${occ}%. Trong đó ${reefer} bãi hàng lạnh (reefer) và ${dg} bãi hàng nguy hiểm (DG). (Chưa tính container đang trên tàu hoặc trên xe.)` };
+}
+
 function answerTrain(qn) {
   const trains = getTrains();
   if (!trains || !trains.length) return { handled: true, text: 'Hệ thống đường sắt đang khởi tạo, chưa có đoàn tàu.' };
@@ -191,6 +209,12 @@ export function answerLive(raw) {
   const incoming = /sap vao|sap toi|chuan bi vao|sap den|moi vao|vao cang|den cang|cho vao/.test(qn);
   const doingWhat = /lam gi|dang lam|hoat dong|tinh trang|trang thai/.test(qn);
 
+  // Aggregate container inventory ("tổng/bao nhiêu container", "tồn kho") — only
+  // when no specific block number is given (else it's a single-block question).
+  if (!num && /(container|\bcont\b|\bteu\b|ton kho|hang ton|ton bai)/.test(qn) &&
+      /(bao nhieu|tong|tat ca|so luong|ton kho|may|hien co|dang co|tong cong|tong so|dem)/.test(qn)) {
+    return answerContainerTotals();
+  }
   if (hasAgv) return answerAgv();
   if (hasTrain) return answerTrain(qn);
   if (hasXe && num) return answerTrucksAtBlock(num);

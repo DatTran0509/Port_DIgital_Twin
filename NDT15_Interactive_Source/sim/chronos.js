@@ -198,7 +198,9 @@ function buildCopilot() {
   const input = box.querySelector('#cc-input');
   const send = () => { const v = input.value.trim(); if (!v) return; ask(v); input.value = ''; };
   box.querySelector('#cc-send').onclick = send;
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  // Ignore Enter while the IME is still composing (Vietnamese Telex/VNI), so the
+  // last syllable isn't sent early and then re-sent as a stray second message.
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) send(); });
   box.querySelectorAll('.cc-chip').forEach(c => c.onclick = () => ask(c.textContent));
   box.querySelector('#cc-min').onclick = () => box.classList.toggle('min');
   setNotifier(msg => log('bot', msg));     // lets the copilot narrate the guided tour over time
